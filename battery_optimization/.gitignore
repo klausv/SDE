@@ -1,0 +1,36 @@
+# Environment variables (NEVER commit!)
+.env
+*.env
+
+# Cache and data
+data/spot_prices/*.pkl
+data/pv_profiles/*.pkl
+*.cache
+
+# Results
+results/reports/*.html
+results/reports/*.xlsx
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Jupyter
+.ipynb_checkpoints
+*.ipynb
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

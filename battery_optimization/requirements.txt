@@ -1,0 +1,23 @@
+# Core dependencies
+numpy>=1.24.0
+pandas>=2.0.0
+scipy>=1.10.0
+
+# PV modeling
+pvlib>=0.10.0
+
+# ENTSO-E API
+entsoe-py>=0.6.0
+requests>=2.28.0
+python-dotenv>=1.0.0
+
+# Optimization
+pulp>=2.7.0
+
+# Visualization
+matplotlib>=3.7.0
+plotly>=5.14.0
+
+# Utilities
+pytz>=2023.3
+openpyxl>=3.1.0  # For Excel export
