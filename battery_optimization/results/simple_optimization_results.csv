@@ -1,0 +1,397 @@
+battery_cost,npv,time,output
+2000,63.0,21.269660711288452,"
+☀️ Solproduksjon fra PVGIS...
+📁 Bruker cached PVGIS data: data/pv_profiles/pvgis_58.97_5.73_138.55kWp.csv
+   • Årsproduksjon: 128.3 MWh
+   • Maks effekt: 138.8 kW
+
+💶 Spotpriser fra ENTSO-E...
+
+📦 CACHED PRISDATA:
+==================================================
+   • NO2 2023: 335.4 KB
+     - Hentet: 2025-09-21 03:58:08
+     - Kilde: generated
+     - Note: Simulert basert på NO2 mønstre
+==================================================
+Bruk --refresh-prices for å oppdatere prisdata
+
+📁 Bruker cached priser: data/spot_prices/spot_NO2_2023.csv
+   • Hentet: 2025-09-21 03:58:08
+   • Kilde: generated
+   • Gjennomsnitt: 0.44 NOK/kWh
+   • Min/Max: 0.05 - 2.50 NOK/kWh
+⚠️ Justerer lengde: 8784 timer produksjon, 8760 timer priser
+
+🚀 KJØRER EKTE OPTIMALISERING MED TIME-FOR-TIME SIMULERING!
+   Dette tar 30-60 sekunder...
+
+✅ OPTIMAL BATTERISTØRRELSE FUNNET:
+   • Kapasitet: 20 kWh
+   • Effekt: 10 kW
+   • Timer: 2.0h batteri
+   • C-rate: 0.50
+   • NPV: 63 NOK
+   • Break-even: 2,000 NOK/kWh
+
+========"
+2500,-9937.0,18.785041093826294,"
+☀️ Solproduksjon fra PVGIS...
+📁 Bruker cached PVGIS data: data/pv_profiles/pvgis_58.97_5.73_138.55kWp.csv
+   • Årsproduksjon: 128.3 MWh
+   • Maks effekt: 138.8 kW
+
+💶 Spotpriser fra ENTSO-E...
+
+📦 CACHED PRISDATA:
+==================================================
+   • NO2 2023: 335.4 KB
+     - Hentet: 2025-09-21 03:58:08
+     - Kilde: generated
+     - Note: Simulert basert på NO2 mønstre
+==================================================
+Bruk --refresh-prices for å oppdatere prisdata
+
+📁 Bruker cached priser: data/spot_prices/spot_NO2_2023.csv
+   • Hentet: 2025-09-21 03:58:08
+   • Kilde: generated
+   • Gjennomsnitt: 0.44 NOK/kWh
+   • Min/Max: 0.05 - 2.50 NOK/kWh
+⚠️ Justerer lengde: 8784 timer produksjon, 8760 timer priser
+
+🚀 KJØRER EKTE OPTIMALISERING MED TIME-FOR-TIME SIMULERING!
+   Dette tar 30-60 sekunder...
+
+✅ OPTIMAL BATTERISTØRRELSE FUNNET:
+   • Kapasitet: 20 kWh
+   • Effekt: 10 kW
+   • Timer: 2.0h batteri
+   • C-rate: 0.50
+   • NPV: -9,937 NOK
+   • Break-even: 2,000 NOK/kWh
+
+===="
+3000,-19937.0,19.82686138153076,"
+☀️ Solproduksjon fra PVGIS...
+📁 Bruker cached PVGIS data: data/pv_profiles/pvgis_58.97_5.73_138.55kWp.csv
+   • Årsproduksjon: 128.3 MWh
+   • Maks effekt: 138.8 kW
+
+💶 Spotpriser fra ENTSO-E...
+
+📦 CACHED PRISDATA:
+==================================================
+   • NO2 2023: 335.4 KB
+     - Hentet: 2025-09-21 03:58:08
+     - Kilde: generated
+     - Note: Simulert basert på NO2 mønstre
+==================================================
+Bruk --refresh-prices for å oppdatere prisdata
+
+📁 Bruker cached priser: data/spot_prices/spot_NO2_2023.csv
+   • Hentet: 2025-09-21 03:58:08
+   • Kilde: generated
+   • Gjennomsnitt: 0.44 NOK/kWh
+   • Min/Max: 0.05 - 2.50 NOK/kWh
+⚠️ Justerer lengde: 8784 timer produksjon, 8760 timer priser
+
+🚀 KJØRER EKTE OPTIMALISERING MED TIME-FOR-TIME SIMULERING!
+   Dette tar 30-60 sekunder...
+
+✅ OPTIMAL BATTERISTØRRELSE FUNNET:
+   • Kapasitet: 20 kWh
+   • Effekt: 10 kW
+   • Timer: 2.0h batteri
+   • C-rate: 0.50
+   • NPV: -19,937 NOK
+   • Break-even: 2,000 NOK/kWh
+
+==="
+3500,-29937.0,18.85076069831848,"
+☀️ Solproduksjon fra PVGIS...
+📁 Bruker cached PVGIS data: data/pv_profiles/pvgis_58.97_5.73_138.55kWp.csv
+   • Årsproduksjon: 128.3 MWh
+   • Maks effekt: 138.8 kW
+
+💶 Spotpriser fra ENTSO-E...
+
+📦 CACHED PRISDATA:
+==================================================
+   • NO2 2023: 335.4 KB
+     - Hentet: 2025-09-21 03:58:08
+     - Kilde: generated
+     - Note: Simulert basert på NO2 mønstre
+==================================================
+Bruk --refresh-prices for å oppdatere prisdata
+
+📁 Bruker cached priser: data/spot_prices/spot_NO2_2023.csv
+   • Hentet: 2025-09-21 03:58:08
+   • Kilde: generated
+   • Gjennomsnitt: 0.44 NOK/kWh
+   • Min/Max: 0.05 - 2.50 NOK/kWh
+⚠️ Justerer lengde: 8784 timer produksjon, 8760 timer priser
+
+🚀 KJØRER EKTE OPTIMALISERING MED TIME-FOR-TIME SIMULERING!
+   Dette tar 30-60 sekunder...
+
+✅ OPTIMAL BATTERISTØRRELSE FUNNET:
+   • Kapasitet: 20 kWh
+   • Effekt: 10 kW
+   • Timer: 2.0h batteri
+   • C-rate: 0.50
+   • NPV: -29,937 NOK
+   • Break-even: 2,000 NOK/kWh
+
+==="
+4000,-39937.0,21.921967029571533,"
+☀️ Solproduksjon fra PVGIS...
+📁 Bruker cached PVGIS data: data/pv_profiles/pvgis_58.97_5.73_138.55kWp.csv
+   • Årsproduksjon: 128.3 MWh
+   • Maks effekt: 138.8 kW
+
+💶 Spotpriser fra ENTSO-E...
+
+📦 CACHED PRISDATA:
+==================================================
+   • NO2 2023: 335.4 KB
+     - Hentet: 2025-09-21 03:58:08
+     - Kilde: generated
+     - Note: Simulert basert på NO2 mønstre
+==================================================
+Bruk --refresh-prices for å oppdatere prisdata
+
+📁 Bruker cached priser: data/spot_prices/spot_NO2_2023.csv
+   • Hentet: 2025-09-21 03:58:08
+   • Kilde: generated
+   • Gjennomsnitt: 0.44 NOK/kWh
+   • Min/Max: 0.05 - 2.50 NOK/kWh
+⚠️ Justerer lengde: 8784 timer produksjon, 8760 timer priser
+
+🚀 KJØRER EKTE OPTIMALISERING MED TIME-FOR-TIME SIMULERING!
+   Dette tar 30-60 sekunder...
+
+✅ OPTIMAL BATTERISTØRRELSE FUNNET:
+   • Kapasitet: 20 kWh
+   • Effekt: 10 kW
+   • Timer: 2.0h batteri
+   • C-rate: 0.50
+   • NPV: -39,937 NOK
+   • Break-even: 2,000 NOK/kWh
+
+==="
+4500,-49937.0,22.57246732711792,"
+☀️ Solproduksjon fra PVGIS...
+📁 Bruker cached PVGIS data: data/pv_profiles/pvgis_58.97_5.73_138.55kWp.csv
+   • Årsproduksjon: 128.3 MWh
+   • Maks effekt: 138.8 kW
+
+💶 Spotpriser fra ENTSO-E...
+
+📦 CACHED PRISDATA:
+==================================================
+   • NO2 2023: 335.4 KB
+     - Hentet: 2025-09-21 03:58:08
+     - Kilde: generated
+     - Note: Simulert basert på NO2 mønstre
+==================================================
+Bruk --refresh-prices for å oppdatere prisdata
+
+📁 Bruker cached priser: data/spot_prices/spot_NO2_2023.csv
+   • Hentet: 2025-09-21 03:58:08
+   • Kilde: generated
+   • Gjennomsnitt: 0.44 NOK/kWh
+   • Min/Max: 0.05 - 2.50 NOK/kWh
+⚠️ Justerer lengde: 8784 timer produksjon, 8760 timer priser
+
+🚀 KJØRER EKTE OPTIMALISERING MED TIME-FOR-TIME SIMULERING!
+   Dette tar 30-60 sekunder...
+
+✅ OPTIMAL BATTERISTØRRELSE FUNNET:
+   • Kapasitet: 20 kWh
+   • Effekt: 10 kW
+   • Timer: 2.0h batteri
+   • C-rate: 0.50
+   • NPV: -49,937 NOK
+   • Break-even: 2,000 NOK/kWh
+
+==="
+5000,-59937.0,22.314002752304077,"
+☀️ Solproduksjon fra PVGIS...
+📁 Bruker cached PVGIS data: data/pv_profiles/pvgis_58.97_5.73_138.55kWp.csv
+   • Årsproduksjon: 128.3 MWh
+   • Maks effekt: 138.8 kW
+
+💶 Spotpriser fra ENTSO-E...
+
+📦 CACHED PRISDATA:
+==================================================
+   • NO2 2023: 335.4 KB
+     - Hentet: 2025-09-21 03:58:08
+     - Kilde: generated
+     - Note: Simulert basert på NO2 mønstre
+==================================================
+Bruk --refresh-prices for å oppdatere prisdata
+
+📁 Bruker cached priser: data/spot_prices/spot_NO2_2023.csv
+   • Hentet: 2025-09-21 03:58:08
+   • Kilde: generated
+   • Gjennomsnitt: 0.44 NOK/kWh
+   • Min/Max: 0.05 - 2.50 NOK/kWh
+⚠️ Justerer lengde: 8784 timer produksjon, 8760 timer priser
+
+🚀 KJØRER EKTE OPTIMALISERING MED TIME-FOR-TIME SIMULERING!
+   Dette tar 30-60 sekunder...
+
+✅ OPTIMAL BATTERISTØRRELSE FUNNET:
+   • Kapasitet: 20 kWh
+   • Effekt: 10 kW
+   • Timer: 2.0h batteri
+   • C-rate: 0.50
+   • NPV: -59,937 NOK
+   • Break-even: 2,000 NOK/kWh
+
+==="
+5500,-69937.0,19.99028182029724,"
+☀️ Solproduksjon fra PVGIS...
+📁 Bruker cached PVGIS data: data/pv_profiles/pvgis_58.97_5.73_138.55kWp.csv
+   • Årsproduksjon: 128.3 MWh
+   • Maks effekt: 138.8 kW
+
+💶 Spotpriser fra ENTSO-E...
+
+📦 CACHED PRISDATA:
+==================================================
+   • NO2 2023: 335.4 KB
+     - Hentet: 2025-09-21 03:58:08
+     - Kilde: generated
+     - Note: Simulert basert på NO2 mønstre
+==================================================
+Bruk --refresh-prices for å oppdatere prisdata
+
+📁 Bruker cached priser: data/spot_prices/spot_NO2_2023.csv
+   • Hentet: 2025-09-21 03:58:08
+   • Kilde: generated
+   • Gjennomsnitt: 0.44 NOK/kWh
+   • Min/Max: 0.05 - 2.50 NOK/kWh
+⚠️ Justerer lengde: 8784 timer produksjon, 8760 timer priser
+
+🚀 KJØRER EKTE OPTIMALISERING MED TIME-FOR-TIME SIMULERING!
+   Dette tar 30-60 sekunder...
+
+✅ OPTIMAL BATTERISTØRRELSE FUNNET:
+   • Kapasitet: 20 kWh
+   • Effekt: 10 kW
+   • Timer: 2.0h batteri
+   • C-rate: 0.50
+   • NPV: -69,937 NOK
+   • Break-even: 2,000 NOK/kWh
+
+==="
+6000,-79937.0,19.759577751159668,"
+☀️ Solproduksjon fra PVGIS...
+📁 Bruker cached PVGIS data: data/pv_profiles/pvgis_58.97_5.73_138.55kWp.csv
+   • Årsproduksjon: 128.3 MWh
+   • Maks effekt: 138.8 kW
+
+💶 Spotpriser fra ENTSO-E...
+
+📦 CACHED PRISDATA:
+==================================================
+   • NO2 2023: 335.4 KB
+     - Hentet: 2025-09-21 03:58:08
+     - Kilde: generated
+     - Note: Simulert basert på NO2 mønstre
+==================================================
+Bruk --refresh-prices for å oppdatere prisdata
+
+📁 Bruker cached priser: data/spot_prices/spot_NO2_2023.csv
+   • Hentet: 2025-09-21 03:58:08
+   • Kilde: generated
+   • Gjennomsnitt: 0.44 NOK/kWh
+   • Min/Max: 0.05 - 2.50 NOK/kWh
+⚠️ Justerer lengde: 8784 timer produksjon, 8760 timer priser
+
+🚀 KJØRER EKTE OPTIMALISERING MED TIME-FOR-TIME SIMULERING!
+   Dette tar 30-60 sekunder...
+
+✅ OPTIMAL BATTERISTØRRELSE FUNNET:
+   • Kapasitet: 20 kWh
+   • Effekt: 10 kW
+   • Timer: 2.0h batteri
+   • C-rate: 0.50
+   • NPV: -79,937 NOK
+   • Break-even: 2,000 NOK/kWh
+
+==="
+6500,-89937.0,21.121331930160522,"
+☀️ Solproduksjon fra PVGIS...
+📁 Bruker cached PVGIS data: data/pv_profiles/pvgis_58.97_5.73_138.55kWp.csv
+   • Årsproduksjon: 128.3 MWh
+   • Maks effekt: 138.8 kW
+
+💶 Spotpriser fra ENTSO-E...
+
+📦 CACHED PRISDATA:
+==================================================
+   • NO2 2023: 335.4 KB
+     - Hentet: 2025-09-21 03:58:08
+     - Kilde: generated
+     - Note: Simulert basert på NO2 mønstre
+==================================================
+Bruk --refresh-prices for å oppdatere prisdata
+
+📁 Bruker cached priser: data/spot_prices/spot_NO2_2023.csv
+   • Hentet: 2025-09-21 03:58:08
+   • Kilde: generated
+   • Gjennomsnitt: 0.44 NOK/kWh
+   • Min/Max: 0.05 - 2.50 NOK/kWh
+⚠️ Justerer lengde: 8784 timer produksjon, 8760 timer priser
+
+🚀 KJØRER EKTE OPTIMALISERING MED TIME-FOR-TIME SIMULERING!
+   Dette tar 30-60 sekunder...
+
+✅ OPTIMAL BATTERISTØRRELSE FUNNET:
+   • Kapasitet: 20 kWh
+   • Effekt: 10 kW
+   • Timer: 2.0h batteri
+   • C-rate: 0.50
+   • NPV: -89,937 NOK
+   • Break-even: 2,000 NOK/kWh
+
+==="
+7000,-99937.0,22.103299856185913,"
+☀️ Solproduksjon fra PVGIS...
+📁 Bruker cached PVGIS data: data/pv_profiles/pvgis_58.97_5.73_138.55kWp.csv
+   • Årsproduksjon: 128.3 MWh
+   • Maks effekt: 138.8 kW
+
+💶 Spotpriser fra ENTSO-E...
+
+📦 CACHED PRISDATA:
+==================================================
+   • NO2 2023: 335.4 KB
+     - Hentet: 2025-09-21 03:58:08
+     - Kilde: generated
+     - Note: Simulert basert på NO2 mønstre
+==================================================
+Bruk --refresh-prices for å oppdatere prisdata
+
+📁 Bruker cached priser: data/spot_prices/spot_NO2_2023.csv
+   • Hentet: 2025-09-21 03:58:08
+   • Kilde: generated
+   • Gjennomsnitt: 0.44 NOK/kWh
+   • Min/Max: 0.05 - 2.50 NOK/kWh
+⚠️ Justerer lengde: 8784 timer produksjon, 8760 timer priser
+
+🚀 KJØRER EKTE OPTIMALISERING MED TIME-FOR-TIME SIMULERING!
+   Dette tar 30-60 sekunder...
+
+✅ OPTIMAL BATTERISTØRRELSE FUNNET:
+   • Kapasitet: 20 kWh
+   • Effekt: 10 kW
+   • Timer: 2.0h batteri
+   • C-rate: 0.50
+   • NPV: -99,937 NOK
+   • Break-even: 2,000 NOK/kWh
+
+==="

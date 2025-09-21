@@ -1,0 +1,9 @@
+battery_kwh,battery_kw,error,computation_time
+20,10,MILPBatteryOptimizer.__init__() got an unexpected keyword argument 'battery_capacity_kwh',5.4836273193359375e-05
+40,20,MILPBatteryOptimizer.__init__() got an unexpected keyword argument 'battery_capacity_kwh',4.7206878662109375e-05
+60,30,MILPBatteryOptimizer.__init__() got an unexpected keyword argument 'battery_capacity_kwh',8.58306884765625e-05
+80,40,MILPBatteryOptimizer.__init__() got an unexpected keyword argument 'battery_capacity_kwh',0.00010228157043457031
+100,50,MILPBatteryOptimizer.__init__() got an unexpected keyword argument 'battery_capacity_kwh',0.0002384185791015625
+60,20,MILPBatteryOptimizer.__init__() got an unexpected keyword argument 'battery_capacity_kwh',0.0004048347473144531
+80,20,MILPBatteryOptimizer.__init__() got an unexpected keyword argument 'battery_capacity_kwh',0.0003044605255126953
+100,25,MILPBatteryOptimizer.__init__() got an unexpected keyword argument 'battery_capacity_kwh',8.7738037109375e-05
