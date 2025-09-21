@@ -1,12 +1,20 @@
-# Battery Optimization for Stavanger Solar Installation
+# 🔋 Battery Optimization - Clean & Simple
+
+## ✨ One Command to Run Everything
+
+```bash
+python run_analysis.py
+```
+
+That's it! Everything else is optional.
 
 ## 🎯 Project Overview
 
-Comprehensive battery optimization system for a 150 kWp solar installation in Stavanger, Norway. The system analyzes the economic viability of battery storage considering:
-
-- **Peak Shaving**: Avoiding grid capacity constraints (77 kW limit)
-- **Energy Arbitrage**: Buy low, sell high based on NO2 spot prices
-- **Power Tariff Reduction**: Minimizing monthly peak demand charges
+Battery optimization for a 138.55 kWp solar installation in Stavanger, Norway. Analyzes economic viability considering:
+- **Curtailment**: Avoiding loss when production > 77 kW grid limit
+- **Arbitrage**: Buy low, sell high based on spot prices
+- **Demand Charges**: Reducing monthly peak power costs
+- **Self-Consumption**: Using own solar instead of grid
 
 ## 📊 System Specifications
 
@@ -130,7 +138,11 @@ battery_lifetime_years = 15
 eur_to_nok = 11.5
 
 # Battery constraints
-round_trip_efficiency = 0.90
+round_trip_efficiency = 0.95
+
+# Battery sizing defaults
+battery_capacity_kwh = 50  # Updated default
+battery_power_kw = 20      # Updated default
 min_soc = 0.10
 max_soc = 0.90
 ```

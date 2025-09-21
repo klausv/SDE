@@ -1,0 +1,176 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{geometry}
+\geometry{margin=1in}
+\usepackage{booktabs}
+
+\title{MILP Battery Optimization Problem Formulation}
+\author{Operations Research Formulation}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Problem Description}
+Optimize battery size and operation for a 150 kWp solar installation with 77 kW grid connection limit to maximize NPV over 15-year lifetime.
+
+\section{Sets and Indices}
+\begin{align}
+T &= \{1, 2, ..., 288\} && \text{Set of time periods (12 days × 24 hours)}\\
+M &= \{1, 2, ..., 12\} && \text{Set of months}\\
+I &= \{1, 2, ..., 10\} && \text{Set of tariff tiers}\\
+D &= \{1, 2, ..., 12\} && \text{Set of typical days}
+\end{align}
+
+\section{Decision Variables}
+
+\subsection{Primary Sizing Variables}
+\begin{align}
+x_{cap} &\in [10, 200] && \text{Battery capacity (kWh)}\\
+x_{pow} &\in [10, 100] && \text{Battery power rating (kW)}
+\end{align}
+
+\subsection{Operational Variables}
+For all $t \in T$:
+\begin{align}
+c_t &\in [0, 100] && \text{Charging power at time } t \text{ (kW)}\\
+d_t &\in [0, 100] && \text{Discharging power at time } t \text{ (kW)}\\
+s_t &\in [0, 200] && \text{State of charge at time } t \text{ (kWh)}\\
+g^{imp}_t &\in \mathbb{R}^+ && \text{Grid import at time } t \text{ (kW)}\\
+g^{exp}_t &\in [0, 77] && \text{Grid export at time } t \text{ (kW)}\\
+\ell_t &\in \mathbb{R}^+ && \text{Curtailed PV at time } t \text{ (kW)}
+\end{align}
+
+\subsection{Binary Variables}
+\begin{align}
+\delta_t &\in \{0,1\} && \text{Charging indicator} \quad \forall t \in T\\
+\tau_{m,i} &\in \{0,1\} && \text{Tariff tier selection} \quad \forall m \in M, i \in I
+\end{align}
+
+\subsection{Auxiliary Variables}
+\begin{align}
+P^{peak}_m &\in \mathbb{R}^+ && \text{Peak power in month } m \quad \forall m \in M
+\end{align}
+
+\section{Parameters}
+\begin{align}
+PV_t &: \text{Solar production at time } t \text{ (kW)}\\
+L_t &: \text{Load demand at time } t \text{ (kW)}\\
+p_t &: \text{Electricity price at time } t \text{ (NOK/kWh)}\\
+\eta &= \sqrt{0.9} : \text{One-way efficiency}\\
+r &= 0.05 : \text{Discount rate}\\
+B &= \{2, 5, 10, 15, 20, 25, 50, 75, 100, 200\} : \text{Tariff boundaries}\\
+M &= 1000 : \text{Big-M constant}
+\end{align}
+
+\section{Objective Function}
+
+\textbf{Maximize Net Present Value:}
+\begin{equation}
+\max Z = \sum_{y=1}^{15} \frac{R_y \cdot (1 - 0.02y)}{(1 + r)^y} - I
+\end{equation}
+
+Where investment cost: $I = x_{cap} \cdot 3000$ NOK
+
+Annual revenue components:
+\begin{align}
+R_y &= R^{arb} + R^{tariff} + R^{curt}\\
+R^{arb} &= \sum_{t \in T} (d_t - c_t) \cdot p_t \cdot \frac{365}{|T|/24}\\
+R^{tariff} &= \sum_{m \in M} \sum_{i \in I} \tau_{m,i} \cdot \text{TariffCost}_i\\
+R^{curt} &= \sum_{t \in T} \ell_t \cdot p_t \cdot 0.9 \cdot \frac{365}{|T|/24}
+\end{align}
+
+\section{Constraints}
+
+\subsection{C-rate Constraints}
+\begin{equation}
+0.25 \cdot x_{cap} \leq x_{pow} \leq 1.0 \cdot x_{cap}
+\end{equation}
+
+\subsection{Battery Operation Limits}
+\begin{align}
+c_t &\leq x_{pow} && \forall t \in T\\
+d_t &\leq x_{pow} && \forall t \in T
+\end{align}
+
+\subsection{State of Charge Bounds}
+\begin{equation}
+0.1 \cdot x_{cap} \leq s_t \leq 0.9 \cdot x_{cap} \quad \forall t \in T
+\end{equation}
+
+\subsection{Mutual Exclusion (Big-M Method)}
+\begin{align}
+c_t &\leq M \cdot \delta_t && \forall t \in T\\
+d_t &\leq M \cdot (1 - \delta_t) && \forall t \in T
+\end{align}
+
+\subsection{Energy Balance}
+\begin{equation}
+PV_t - L_t + g^{imp}_t - g^{exp}_t - \ell_t = c_t - d_t \quad \forall t \in T
+\end{equation}
+
+\subsection{State of Charge Dynamics}
+\begin{align}
+s_t &= s_{t-1} + \eta \cdot c_t - \frac{d_t}{\eta} && \forall t \in T \setminus \{1\}\\
+s_1 &= 0.5 \cdot x_{cap} && \text{(Initial SOC)}
+\end{align}
+
+\subsection{Cyclic SOC Constraint}
+\begin{equation}
+s_{24d} \leq s_{24(d-1)+1} \quad \forall d \in D
+\end{equation}
+
+\subsection{Minimum Utilization}
+\begin{equation}
+\sum_{t \in T} d_t \geq 0.5 \cdot x_{cap} \cdot |D|
+\end{equation}
+
+\subsection{Maximum Daily Depth of Discharge}
+\begin{equation}
+\sum_{t=24(d-1)+1}^{24d} d_t \leq 0.8 \cdot x_{cap} \quad \forall d \in D
+\end{equation}
+
+\subsection{Monthly Peak Power}
+\begin{equation}
+P^{peak}_m \geq g^{imp}_t \quad \forall t \in T_m, \forall m \in M
+\end{equation}
+
+\subsection{Tariff Tier Selection}
+\begin{equation}
+\sum_{i \in I} \tau_{m,i} = 1 \quad \forall m \in M
+\end{equation}
+
+\subsection{Tariff-Peak Linkage}
+\begin{align}
+P^{peak}_m &\leq B_i + M(1 - \tau_{m,i}) && \forall m \in M, i \in I\\
+P^{peak}_m &\geq B_{i-1} \cdot \tau_{m,i} && \forall m \in M, i \in I \setminus \{1\}
+\end{align}
+
+\section{Problem Classification}
+
+This is a \textbf{Mixed-Integer Linear Program (MILP)}:
+\begin{itemize}
+\item \textbf{Linear objective}: NPV maximization
+\item \textbf{Linear constraints}: All constraints are linear or linearized
+\item \textbf{Mixed variables}: Continuous (sizing, operations) and binary (states, selections)
+\item \textbf{Time-indexed}: Multi-period optimization
+\end{itemize}
+
+\section{Computational Properties}
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+Property & Value \\
+\midrule
+Decision variables & $\approx$ 3,500 \\
+Constraints & $\approx$ 4,000 \\
+Complexity & NP-hard \\
+Solution method & Branch-and-bound (CBC) \\
+Optimality & Global (within linear approximation) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\end{document}

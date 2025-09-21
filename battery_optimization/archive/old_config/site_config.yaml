@@ -1,0 +1,40 @@
+# Site-specific configuration
+# Location and grid connection parameters
+
+site:
+  name: "Stavanger Commercial Site"
+  description: "Office building with rooftop solar installation"
+
+location:
+  latitude: 58.97
+  longitude: 5.73
+  altitude: 10  # meters above sea level
+  timezone: "Europe/Oslo"
+
+grid_connection:
+  max_import_kw: 70  # Maximum import power
+  max_export_kw: 70  # Maximum export power (feed-in limit)
+  connection_type: "commercial"  # commercial, industrial, residential
+  voltage_level: "400V"
+  phases: 3
+
+consumption_profile:
+  profile_type: "commercial"  # commercial, residential, industrial
+  annual_consumption_kwh: 90000
+
+  # Base load characteristics
+  base_load_kw: 10.3
+  peak_load_kw: 25.7
+  night_load_kw: 5.2
+
+  # Operating hours (for office profile)
+  weekday_start: 6  # 06:00
+  weekday_end: 18   # 18:00
+
+  # Load factors
+  weekend_factor: 0.7  # 70% of weekday load
+  summer_factor: 0.85  # 85% of winter load
+
+  # Seasonal variation
+  heating_months: [1, 2, 3, 10, 11, 12]  # Months with heating demand
+  cooling_months: [6, 7, 8]  # Months with cooling demand (if applicable)

@@ -1,0 +1,122 @@
+# Optimization configuration
+# Settings for optimization algorithms and strategies
+
+optimization:
+  # Optimization method
+  method: "mixed_integer_linear"  # mixed_integer_linear, differential_evolution, particle_swarm
+  solver: "cbc"  # cbc, gurobi, cplex, highs
+
+  # Time resolution
+  time_resolution:
+    frequency: "hourly"  # hourly, 15min, 30min
+    horizon_days: 365  # Optimization horizon
+    representative_days: false  # Use representative days for speed
+    num_representative_days: 12  # If using representative days
+
+  # Objective function
+  objective:
+    type: "maximize_npv"  # maximize_npv, minimize_lcoe, maximize_self_consumption
+    weights:
+      economic: 1.0
+      environmental: 0.0  # Can add CO2 reduction objective
+      self_sufficiency: 0.0
+
+  # Optimization strategies
+  strategies:
+    - name: "energy_arbitrage"
+      enabled: true
+      weight: 1.0
+
+    - name: "peak_shaving"
+      enabled: true
+      weight: 0.8
+      target_peak_reduction: 0.20  # Try to reduce peaks by 20%
+
+    - name: "self_consumption"
+      enabled: true
+      weight: 0.6
+
+    - name: "grid_services"
+      enabled: false  # Future: frequency regulation, etc.
+      weight: 0.0
+
+  # Algorithm parameters
+  algorithm_params:
+    # For MILP
+    milp:
+      gap_tolerance: 0.01  # 1% optimality gap
+      time_limit_seconds: 300
+      threads: 4
+
+    # For evolutionary algorithms
+    evolutionary:
+      population_size: 100
+      generations: 500
+      mutation_rate: 0.1
+      crossover_rate: 0.7
+
+  # Convergence criteria
+  convergence:
+    max_iterations: 1000
+    tolerance: 1e-6
+    early_stopping: true
+    patience: 50  # Iterations without improvement
+
+# Scenario definitions
+scenarios:
+  - name: "baseline"
+    description: "Current market conditions"
+    overrides: {}
+
+  - name: "optimistic"
+    description: "Lower battery costs, higher electricity prices"
+    overrides:
+      battery_cost_nok_per_kwh: 2000
+      electricity_price_inflation: 0.04
+
+  - name: "conservative"
+    description: "Higher battery costs, lower electricity prices"
+    overrides:
+      battery_cost_nok_per_kwh: 4000
+      electricity_price_inflation: 0.01
+
+  - name: "high_utilization"
+    description: "Aggressive cycling strategy"
+    overrides:
+      min_battery_cycles_per_year: 250
+      depth_of_discharge: 0.95
+
+# Output configuration
+output:
+  # Results to calculate
+  metrics:
+    - npv
+    - irr
+    - payback_period
+    - lcoe
+    - self_consumption_rate
+    - self_sufficiency_rate
+    - grid_independence
+    - co2_reduction
+
+  # Sensitivity analysis
+  sensitivity_plots:
+    - tornado_diagram
+    - spider_plot
+    - heatmap
+
+  # Time series outputs
+  time_series:
+    - battery_soc
+    - power_flows
+    - spot_prices
+    - revenue_streams
+
+  # Report formats
+  reports:
+    - format: "excel"
+      include_charts: true
+    - format: "pdf"
+      include_summary: true
+    - format: "html"
+      interactive: true

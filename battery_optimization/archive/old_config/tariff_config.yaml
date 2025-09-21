@@ -1,0 +1,104 @@
+# Grid tariff configuration
+# Lnett and other grid operator tariffs
+
+grid_operator: "lnett"  # lnett, tensio, elvia, etc.
+
+# Lnett tariff structure for commercial customers
+lnett_commercial:
+  # Customer category
+  category: "commercial_under_100mwh"  # Based on annual consumption
+
+  # Energy charges (NOK/kWh)
+  energy_charges:
+    peak_hours:
+      rate: 0.296  # Monday-Friday 06:00-22:00
+      weekdays: [0, 1, 2, 3, 4]  # Monday=0, Sunday=6
+      start_hour: 6
+      end_hour: 22
+
+    off_peak:
+      rate: 0.176  # Nights and weekends
+
+  # Power charges (NOK per kW per month)
+  power_charges:
+    # Progressive bracket system
+    brackets:
+      - {from_kw: 0, to_kw: 2, rate: 136}
+      - {from_kw: 2, to_kw: 5, rate: 232}
+      - {from_kw: 5, to_kw: 10, rate: 372}
+      - {from_kw: 10, to_kw: 15, rate: 572}
+      - {from_kw: 15, to_kw: 20, rate: 772}
+      - {from_kw: 20, to_kw: 25, rate: 972}
+      - {from_kw: 25, to_kw: 50, rate: 1772}
+      - {from_kw: 50, to_kw: 75, rate: 2572}
+      - {from_kw: 75, to_kw: 100, rate: 3372}
+      - {from_kw: 100, to_kw: 999999, rate: 5600}
+
+    # Peak measurement method
+    measurement: "highest_hour"  # highest_hour, average_three_highest
+    billing_period: "monthly"
+
+  # Fixed charges
+  fixed_charges:
+    annual_fee: 0  # NOK/year (if applicable)
+    enova_fee: 800  # NOK/year
+
+  # Consumption tax by month (NOK/kWh)
+  consumption_tax:
+    1: 0.1541  # January
+    2: 0.1541  # February
+    3: 0.1541  # March
+    4: 0.0891  # April
+    5: 0.0891  # May
+    6: 0.0891  # June
+    7: 0.0891  # July
+    8: 0.0891  # August
+    9: 0.0891  # September
+    10: 0.0891  # October
+    11: 0.0891  # November
+    12: 0.1541  # December
+
+# Alternative tariff for comparison
+tensio_commercial:
+  category: "commercial_ts"
+
+  energy_charges:
+    winter_peak:  # Nov-Mar, Mon-Fri 06:00-21:00
+      rate: 0.32
+      months: [11, 12, 1, 2, 3]
+      weekdays: [0, 1, 2, 3, 4]
+      start_hour: 6
+      end_hour: 21
+
+    summer_peak:  # Apr-Oct, Mon-Fri 06:00-21:00
+      rate: 0.24
+      months: [4, 5, 6, 7, 8, 9, 10]
+      weekdays: [0, 1, 2, 3, 4]
+      start_hour: 6
+      end_hour: 21
+
+    off_peak:
+      rate: 0.18
+
+  power_charges:
+    rate_per_kw_month: 45  # Flat rate NOK/kW/month
+    measurement: "average_three_highest"
+
+# Feed-in tariff (if different from consumption)
+feed_in:
+  enabled: true
+  rate_reduction: 0.01  # NOK/kWh reduction from spot price
+  fixed_fee: 0  # NOK/kWh fixed feed-in fee
+
+# Future tariff changes (for long-term analysis)
+tariff_evolution:
+  annual_increase: 0.02  # 2% annual increase
+
+  # Potential future changes
+  time_of_use_expansion:
+    year: 2026
+    description: "More granular time-of-use pricing"
+
+  dynamic_pricing:
+    year: 2028
+    description: "Real-time pricing based on grid conditions"

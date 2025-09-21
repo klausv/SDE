@@ -1,0 +1,85 @@
+# Economic configuration
+# Financial assumptions and decision variables
+
+# Decision variables for optimization
+decision_variables:
+  battery_capacity_kwh:
+    min: 10
+    max: 500
+    step: 10
+    default: 50
+
+  battery_power_kw:
+    min: 5
+    max: 200
+    step: 5
+    default: 40
+
+  battery_cost_nok_per_kwh:
+    # This is a decision variable - what cost is needed for profitability?
+    scenarios:
+      optimistic: 2000
+      baseline: 3000
+      conservative: 4000
+      current_market: 5000
+    default: 3000
+    sensitivity_range: [1500, 5500]
+    sensitivity_step: 500
+
+# Financial assumptions
+financial:
+  discount_rate: 0.05  # 5% discount rate
+  project_lifetime_years: 15
+  currency: "NOK"
+
+  # Inflation assumptions
+  general_inflation: 0.025  # 2.5% general inflation
+  electricity_price_inflation: 0.03  # 3% electricity price inflation
+  grid_tariff_inflation: 0.02  # 2% grid tariff inflation
+
+  # Tax and incentives
+  vat_rate: 0.25  # 25% VAT (may be recoverable for commercial)
+  depreciation_years: 7  # For tax purposes
+  investment_support: 0.0  # % of investment (e.g., Enova support)
+
+# Battery specifications
+battery:
+  technology: "lithium_ion"  # lithium_ion, lithium_lfp, flow_battery
+  round_trip_efficiency: 0.90  # 90% round-trip efficiency
+
+  # Degradation model
+  degradation:
+    calendar_degradation: 0.02  # 2% per year
+    cycle_degradation: 0.0001  # 0.01% per cycle
+    end_of_life_capacity: 0.80  # 80% remaining capacity
+
+  # Operating constraints
+  depth_of_discharge: 0.90  # 90% DOD
+  min_state_of_charge: 0.10  # 10% minimum SOC
+  max_c_rate_charge: 1.0  # 1C maximum charge rate
+  max_c_rate_discharge: 1.0  # 1C maximum discharge rate
+
+  # Warranty
+  warranty_years: 10
+  warranty_cycles: 6000
+  warranty_capacity_retention: 0.70  # 70% capacity after warranty
+
+# Optimization constraints
+constraints:
+  min_irr: 0.08  # 8% minimum Internal Rate of Return
+  max_payback_years: 10  # Maximum acceptable payback period
+  min_battery_cycles_per_year: 100  # Minimum utilization
+  max_battery_cycles_per_year: 365  # Maximum 1 cycle per day
+
+# Sensitivity analysis parameters
+sensitivity:
+  parameters:
+    - electricity_price_inflation
+    - discount_rate
+    - battery_cost_nok_per_kwh
+    - degradation_rate
+
+  ranges:
+    electricity_price_inflation: [0.00, 0.05]
+    discount_rate: [0.03, 0.08]
+    degradation_rate: [0.015, 0.03]

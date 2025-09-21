@@ -1,0 +1,49 @@
+# System configuration
+# Solar PV system design parameters
+
+solar_system:
+  # Installed capacity
+  installed_capacity_kwp: 138.55
+  inverter_capacity_kw: 100
+
+  # Panel orientation
+  azimuth: 171  # degrees from north (180 = south)
+  tilt: 30      # degrees from horizontal
+
+  # Panel specifications
+  module_type: "crystalline_silicon"  # crystalline_silicon, thin_film
+  bifacial: false
+  bifaciality_factor: 0.0
+
+  # Mounting configuration
+  mounting_type: "roof_mounted"  # roof_mounted, ground_mounted, carport
+  tracking: "fixed"  # fixed, single_axis, dual_axis
+
+# System losses (all in decimal, e.g., 0.02 = 2%)
+losses:
+  # Pre-inverter (DC) losses
+  soiling: 0.02          # Dust and dirt
+  shading: 0.03          # Shading from obstacles
+  snow: 0.00             # Snow coverage (location-dependent)
+  mismatch: 0.02         # Module mismatch
+  wiring_dc: 0.02        # DC wiring losses
+
+  # Inverter losses
+  inverter_efficiency: 0.96  # 96% efficiency
+  inverter_clipping: 0.01     # Clipping losses due to oversizing
+
+  # Post-inverter (AC) losses
+  wiring_ac: 0.01        # AC wiring losses
+  transformer: 0.00      # Transformer losses (if applicable)
+
+  # Other losses
+  availability: 0.03     # System downtime
+  degradation_year_1: 0.025  # First year degradation
+  degradation_annual: 0.005  # Annual degradation after year 1
+
+  # Total estimated: ~14% first year
+
+# Temperature coefficients
+temperature:
+  power_coefficient: -0.0037  # %/°C power temperature coefficient
+  noct: 45  # Nominal Operating Cell Temperature (°C)

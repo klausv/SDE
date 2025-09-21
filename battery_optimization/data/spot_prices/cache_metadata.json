@@ -1,0 +1,16 @@
+{
+  "NO2_2024": {
+    "area": "NO2",
+    "year": 2024,
+    "source": "generated",
+    "fetched_date": "2025-09-21 04:15:37",
+    "note": "Generert basert p\u00e5 kjente 2024 m\u00e5nedspriser med intradag-variasjon"
+  },
+  "NO2_2023": {
+    "area": "NO2",
+    "year": 2023,
+    "source": "generated",
+    "fetched_date": "2025-09-21 03:58:08",
+    "note": "Simulert basert p\u00e5 NO2 m\u00f8nstre"
+  }
+}
