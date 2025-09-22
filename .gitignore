@@ -1,0 +1,174 @@
+# ====================
+# Python
+# ====================
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+.eggs/
+build/
+dist/
+*.whl
+
+# ====================
+# Virtual Environments
+# ====================
+.venv/
+venv/
+ENV/
+env/
+.conda/
+.virtualenv/
+
+# ====================
+# Data & Cache Files
+# ====================
+*.pkl
+*.pickle
+*.h5
+*.hdf5
+*.feather
+*.parquet
+*.sqlite
+*.db
+*.cache
+cache/
+.cache/
+
+# ====================
+# Logs & Output
+# ====================
+*.log
+logs/
+*.out
+*.err
+
+# ====================
+# Results & Generated Files
+# ====================
+results/*.pkl
+results/*.pickle
+results/*.csv
+results/*.json
+results/*.html
+output/
+outputs/
+temp/
+tmp/
+# Keep only essential result files
+!results/report_data.json
+
+# ====================
+# Jupyter & Notebooks
+# ====================
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+*-checkpoint.ipynb
+# Keep completed reports
+!results/battery_optimization_report_COMPLETE.ipynb
+
+# ====================
+# Data Files (Project Specific)
+# ====================
+# Consider if these should be downloaded/generated instead
+data/cache/
+data/*.pkl
+data/*.pickle
+# Optionally ignore CSV data if it can be regenerated
+# data/spot_prices/*.csv
+# data/pv_profiles/*.csv
+
+# ====================
+# Environment & Config
+# ====================
+.env
+.env.*
+.env.local
+.env.production
+.env.test
+*.env
+!.env.example
+config.local.py
+secrets.py
+credentials.json
+
+# ====================
+# IDE & Editors
+# ====================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+.classpath
+*.sublime-*
+
+# ====================
+# OS Files
+# ====================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# ====================
+# Testing & Coverage
+# ====================
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.hypothesis/
+coverage.xml
+*.cover
+.cache/
+
+# ====================
+# Documentation
+# ====================
+docs/_build/
+docs/.doctrees/
+site/
+
+# ====================
+# Backup & Temporary
+# ====================
+*.bak
+*.backup
+*.tmp
+*.temp
+*.old
+*.orig
+*.rej
+
+# ====================
+# Project Specific
+# ====================
+# Archive directory should be kept for history
+# archive/
+
+# Specific files to ignore
+run_jupyter_windows.bat
+*.bat
+*.sh
+!scripts/*.sh  # Keep intended scripts
+
+# Claude specific
+.claude/
+!.claude/commands/
+!.claude/settings.local.json
