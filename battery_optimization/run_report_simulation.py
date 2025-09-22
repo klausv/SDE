@@ -14,45 +14,41 @@ import warnings
 import pickle
 import json
 
+# Import centralized configuration
+from config import config
+
 warnings.filterwarnings('ignore')
 
-# System configuration
+# System configuration - use centralized config
 SYSTEM_CONFIG = {
-    'pv_capacity_kwp': 138.55,
-    'inverter_capacity_kw': 100,
-    'grid_limit_kw': 77,
-    'location': 'Stavanger',
-    'latitude': 58.97,
-    'longitude': 5.73,
-    'tilt': 15,
-    'azimuth': 171,
-    'annual_consumption_kwh': 300000,
-    'battery_efficiency': 0.90,
-    'discount_rate': 0.05,
-    'battery_lifetime_years': 15,
-    'eur_to_nok': 11.5
+    'pv_capacity_kwp': config.solar.pv_capacity_kwp,
+    'inverter_capacity_kw': config.solar.inverter_capacity_kw,
+    'grid_limit_kw': config.solar.grid_export_limit_kw,
+    'location': config.location.name,
+    'latitude': config.location.latitude,
+    'longitude': config.location.longitude,
+    'tilt': 15,  # Keep specific value for this report
+    'azimuth': 171,  # Keep specific value for this report
+    'annual_consumption_kwh': config.consumption.annual_kwh,
+    'battery_efficiency': config.battery.efficiency_roundtrip,
+    'discount_rate': config.economics.discount_rate,
+    'battery_lifetime_years': config.battery.lifetime_years,
+    'eur_to_nok': config.economics.eur_to_nok
 }
 
-# Economic parameters
+# Economic parameters - use centralized config
 ECONOMIC_PARAMS = {
-    'spot_price_avg_2024': 0.85,  # NOK/kWh
-    'grid_tariff_peak': 0.296,     # NOK/kWh (06-22 weekdays)
-    'grid_tariff_offpeak': 0.176,  # NOK/kWh (nights/weekends)
-    'energy_tariff': 0.054,         # NOK/kWh
-    'consumption_tax': 0.154,       # NOK/kWh
-    'battery_cost_market': 5000,    # NOK/kWh
-    'battery_cost_target': 2500,    # NOK/kWh
+    'spot_price_avg_2024': config.economics.spot_price_avg_2024,
+    'grid_tariff_peak': config.tariff.energy_peak,
+    'grid_tariff_offpeak': config.tariff.energy_offpeak,
+    'energy_tariff': config.tariff.energy_tariff,
+    'consumption_tax': 0.154,  # Average consumption tax
+    'battery_cost_market': config.battery.market_cost_nok_per_kwh,
+    'battery_cost_target': config.battery.target_cost_nok_per_kwh,
 }
 
-# Power tariff structure (NOK/kW/month)
-POWER_TARIFF = [
-    (0, 50, 125),
-    (50, 100, 95),
-    (100, 200, 85),
-    (200, 500, 75),
-    (500, 1000, 65),
-    (1000, float('inf'), 55)
-]
+# Power tariff structure - use centralized config
+POWER_TARIFF = config.tariff.power_brackets
 
 def generate_solar_production():
     """Generate realistic solar production profile"""
@@ -109,7 +105,55 @@ def generate_consumption_profile():
             else:
                 daily_factor = 0.7
         else:
-            daily_factor = 0.9
+            # Weekend pattern - more realistic variation by hour
+            if hour_of_day == 0:
+                daily_factor = 0.5
+            elif hour_of_day == 1:
+                daily_factor = 0.45
+            elif hour_of_day == 2:
+                daily_factor = 0.4
+            elif hour_of_day == 3:
+                daily_factor = 0.4
+            elif hour_of_day == 4:
+                daily_factor = 0.45
+            elif hour_of_day == 5:
+                daily_factor = 0.5
+            elif hour_of_day == 6:
+                daily_factor = 0.6
+            elif hour_of_day == 7:
+                daily_factor = 0.7
+            elif hour_of_day == 8:
+                daily_factor = 0.85
+            elif hour_of_day == 9:
+                daily_factor = 0.95
+            elif hour_of_day == 10:
+                daily_factor = 1.0
+            elif hour_of_day == 11:
+                daily_factor = 1.05
+            elif hour_of_day == 12:
+                daily_factor = 1.0
+            elif hour_of_day == 13:
+                daily_factor = 0.95
+            elif hour_of_day == 14:
+                daily_factor = 0.9
+            elif hour_of_day == 15:
+                daily_factor = 0.85
+            elif hour_of_day == 16:
+                daily_factor = 0.85
+            elif hour_of_day == 17:
+                daily_factor = 0.9
+            elif hour_of_day == 18:
+                daily_factor = 0.95
+            elif hour_of_day == 19:
+                daily_factor = 1.0
+            elif hour_of_day == 20:
+                daily_factor = 0.95
+            elif hour_of_day == 21:
+                daily_factor = 0.85
+            elif hour_of_day == 22:
+                daily_factor = 0.7
+            else:  # hour 23
+                daily_factor = 0.6
 
         consumption.append(base_load * seasonal * daily_factor)
 
@@ -241,10 +285,10 @@ def calculate_economics(results, battery_kwh, battery_cost_per_kwh):
     for peak_no, peak_with in zip(monthly_peaks_no_battery, monthly_peaks_with_battery):
         tariff_no = get_power_tariff(peak_no)
         tariff_with = get_power_tariff(peak_with)
-        power_savings += (tariff_no - tariff_with) * max(peak_no, peak_with)
+        power_savings += (tariff_no - tariff_with)  # Monthly savings in NOK (already total cost, not per kW!)
 
     # Total annual savings
-    annual_savings = curtailment_value + arbitrage_value + power_savings * 12
+    annual_savings = curtailment_value + arbitrage_value + power_savings * 12  # power_savings is monthly
 
     # Investment
     investment = battery_kwh * battery_cost_per_kwh
@@ -281,11 +325,11 @@ def calculate_economics(results, battery_kwh, battery_cost_per_kwh):
     }
 
 def get_power_tariff(peak_kw):
-    """Get power tariff based on peak demand"""
-    for min_kw, max_kw, tariff in POWER_TARIFF:
-        if min_kw <= peak_kw < max_kw:
-            return tariff
-    return POWER_TARIFF[-1][2]
+    """Calculate PROGRESSIVE Lnett power tariff based on peak demand
+
+    Now uses centralized config for correct progressive calculation.
+    """
+    return config.tariff.get_progressive_power_cost(peak_kw)
 
 def optimize_battery_size():
     """Find optimal battery size"""

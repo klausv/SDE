@@ -1,23 +1,16 @@
 #!/usr/bin/env python3
 """
-Comprehensive battery optimization simulation with DC production tracking
+Realistic battery optimization simulation using actual PVGIS data and realistic consumption profile
 """
 
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import plotly.express as px
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-from datetime import datetime, timedelta
-import warnings
 import pickle
 import json
+from datetime import datetime
 
 # Import centralized configuration
-from config import config
-
-warnings.filterwarnings('ignore')
+from config import config, get_power_tariff
 
 # System configuration - use centralized config
 SYSTEM_CONFIG = {
@@ -27,8 +20,6 @@ SYSTEM_CONFIG = {
     'location': config.location.name,
     'latitude': config.location.latitude,
     'longitude': config.location.longitude,
-    'tilt': 15,  # Keep specific value for this report
-    'azimuth': 171,  # Keep specific value for this report
     'annual_consumption_kwh': config.consumption.annual_kwh,
     'battery_efficiency': config.battery.efficiency_roundtrip,
     'discount_rate': config.economics.discount_rate,
@@ -51,52 +42,35 @@ ECONOMIC_PARAMS = {
 # Power tariff structure - use centralized config
 POWER_TARIFF = config.tariff.power_brackets
 
-def generate_solar_production():
-    """Generate realistic solar production profile - DC side"""
-    hours = pd.date_range(start='2024-01-01', end='2024-12-31 23:00', freq='h')
-    production_dc = np.zeros(len(hours))
-    production_ac = np.zeros(len(hours))
-    inverter_clipping = np.zeros(len(hours))
+def load_real_solar_production():
+    """Load actual PVGIS solar production data"""
+    print("Loading real PVGIS solar production data...")
 
-    for i, hour in enumerate(hours):
-        # Day of year for seasonal variation
-        day_of_year = hour.dayofyear
-        hour_of_day = hour.hour
+    # Load the PVGIS CSV data
+    df = pd.read_csv('data/pv_profiles/pvgis_58.97_5.73_138.55kWp.csv', index_col=0, parse_dates=True)
 
-        # Seasonal factor (peak in summer)
-        seasonal = 0.5 + 0.5 * np.cos((day_of_year - 172) * 2 * np.pi / 365)
+    # Convert to 2024 dates (PVGIS uses 2020)
+    df.index = df.index.map(lambda x: x.replace(year=2024))
 
-        # Daily pattern (peak at noon)
-        if 4 <= hour_of_day <= 20:
-            daily = np.sin((hour_of_day - 4) * np.pi / 16)
-        else:
-            daily = 0
+    # This is already DC production in kW
+    production_dc = df['production_kw'].values
 
-        # Base DC production - NOT limited by inverter
-        base_dc_production = SYSTEM_CONFIG['pv_capacity_kwp'] * seasonal * daily
+    # Calculate AC production with inverter limitations
+    production_ac = np.minimum(production_dc * SYSTEM_CONFIG['inverter_efficiency'],
+                               SYSTEM_CONFIG['inverter_capacity_kw'])
 
-        # Add some randomness for clouds
-        weather_factor = 0.7 + 0.3 * np.random.random()
+    # Calculate inverter clipping
+    inverter_clipping = np.maximum(0, production_dc * SYSTEM_CONFIG['inverter_efficiency'] -
+                                   SYSTEM_CONFIG['inverter_capacity_kw'])
 
-        # Full DC production
-        production_dc[i] = base_dc_production * weather_factor
+    return pd.Series(production_dc, index=df.index), pd.Series(production_ac, index=df.index), pd.Series(inverter_clipping, index=df.index)
 
-        # AC production after inverter (with clipping)
-        ac_before_limit = production_dc[i] * SYSTEM_CONFIG['inverter_efficiency']
-        production_ac[i] = min(ac_before_limit, SYSTEM_CONFIG['inverter_capacity_kw'])
+def generate_realistic_consumption_profile(index):
+    """Generate realistic commercial building consumption profile"""
+    print("Generating realistic commercial consumption profile...")
 
-        # Track inverter clipping separately
-        inverter_clipping[i] = max(0, ac_before_limit - SYSTEM_CONFIG['inverter_capacity_kw'])
-
-    return (pd.Series(production_dc, index=hours, name='production_dc'),
-            pd.Series(production_ac, index=hours, name='production_ac'),
-            pd.Series(inverter_clipping, index=hours, name='inverter_clipping'))
-
-def generate_consumption_profile():
-    """Generate realistic consumption profile"""
-    hours = pd.date_range(start='2024-01-01', end='2024-12-31 23:00', freq='h')
+    hours = index  # Use the same index as production data
     annual_consumption = SYSTEM_CONFIG['annual_consumption_kwh']
-    base_load = annual_consumption / 8760
 
     consumption = []
     for hour in hours:
@@ -104,37 +78,58 @@ def generate_consumption_profile():
         is_weekday = hour.weekday() < 5
         month = hour.month
 
-        # Seasonal variation (higher in winter)
-        seasonal = 1.2 if month in [11, 12, 1, 2] else 0.9
-
-        # Daily pattern
-        if is_weekday:
-            if 6 <= hour_of_day <= 9:
-                daily_factor = 1.3
-            elif 10 <= hour_of_day <= 16:
-                daily_factor = 1.1
-            elif 17 <= hour_of_day <= 22:
-                daily_factor = 1.2
-            else:
-                daily_factor = 0.7
+        # Seasonal variation - higher in winter (heating) and summer (cooling)
+        if month in [12, 1, 2]:  # Winter
+            seasonal = 1.3
+        elif month in [6, 7, 8]:  # Summer
+            seasonal = 1.1
+        elif month in [3, 4, 5, 9, 10, 11]:  # Spring/Fall
+            seasonal = 0.9
         else:
-            # Weekend pattern - reduced but still varying
-            if 8 <= hour_of_day <= 11:
-                daily_factor = 1.0
-            elif 12 <= hour_of_day <= 17:
-                daily_factor = 0.9
-            elif 18 <= hour_of_day <= 22:
-                daily_factor = 0.95
-            else:
-                daily_factor = 0.6
+            seasonal = 1.0
 
-        consumption.append(base_load * seasonal * daily_factor)
+        # Daily pattern for commercial building
+        if is_weekday:
+            if 0 <= hour_of_day < 6:  # Night - minimal
+                hourly_factor = 0.3
+            elif 6 <= hour_of_day < 7:  # Early morning ramp-up
+                hourly_factor = 0.6
+            elif 7 <= hour_of_day < 8:  # Morning start
+                hourly_factor = 0.9
+            elif 8 <= hour_of_day < 9:  # Full operations start
+                hourly_factor = 1.2
+            elif 9 <= hour_of_day < 12:  # Morning peak
+                hourly_factor = 1.4
+            elif 12 <= hour_of_day < 13:  # Lunch dip
+                hourly_factor = 1.1
+            elif 13 <= hour_of_day < 17:  # Afternoon operations
+                hourly_factor = 1.3
+            elif 17 <= hour_of_day < 18:  # End of day
+                hourly_factor = 0.9
+            elif 18 <= hour_of_day < 20:  # Evening reduced
+                hourly_factor = 0.6
+            else:  # Late evening
+                hourly_factor = 0.4
+        else:  # Weekend - much lower
+            if 8 <= hour_of_day < 18:
+                hourly_factor = 0.5
+            else:
+                hourly_factor = 0.3
+
+        # Base hourly consumption
+        base_hourly = annual_consumption / 8760
+
+        # Apply all factors with some randomness
+        random_factor = 0.9 + 0.2 * np.random.random()  # ±10% variation
+        hourly_consumption = base_hourly * seasonal * hourly_factor * random_factor
+
+        consumption.append(hourly_consumption)
 
     return pd.Series(consumption, index=hours, name='consumption_kw')
 
-def get_electricity_prices():
-    """Generate electricity price profile"""
-    hours = pd.date_range(start='2024-01-01', end='2024-12-31 23:00', freq='h')
+def get_electricity_prices(index):
+    """Generate electricity price profile based on actual patterns"""
+    hours = index  # Use the same index as production data
     prices = []
 
     for hour in hours:
@@ -151,15 +146,17 @@ def get_electricity_prices():
             seasonal = 1.0
 
         # Daily variation
-        if 17 <= hour_of_day <= 20:  # Peak hours
-            daily = 1.4
+        if 7 <= hour_of_day <= 9:  # Morning peak
+            daily = 1.5
+        elif 17 <= hour_of_day <= 20:  # Evening peak
+            daily = 1.6
         elif 23 <= hour_of_day or hour_of_day <= 5:  # Night
-            daily = 0.6
+            daily = 0.5
         else:
             daily = 1.0
 
-        # Add randomness
-        random_factor = 0.8 + 0.4 * np.random.random()
+        # Add volatility
+        random_factor = 0.7 + 0.6 * np.random.random()
 
         spot_price = base_price * seasonal * daily * random_factor
 
@@ -173,12 +170,12 @@ def get_electricity_prices():
     return pd.Series(prices, index=hours, name='electricity_price')
 
 def simulate_battery_operation(production_dc, production_ac, consumption, prices, battery_kwh, battery_kw):
-    """Simulate battery operation for a full year with DC/AC tracking"""
+    """Simulate battery operation for a full year"""
     hours = len(production_ac)
-    soc = np.zeros(hours)  # State of charge
+    soc = np.zeros(hours)
     battery_charge = np.zeros(hours)
     battery_discharge = np.zeros(hours)
-    grid_curtailment = np.zeros(hours)  # Curtailment due to grid limit
+    grid_curtailment = np.zeros(hours)
     grid_import = np.zeros(hours)
     grid_export = np.zeros(hours)
 
@@ -207,26 +204,34 @@ def simulate_battery_operation(production_dc, production_ac, consumption, prices
                 export_available = production_ac.iloc[i] - consumption.iloc[i] - grid_curtailment[i] - battery_charge[i]
                 grid_export[i] = min(export_available, SYSTEM_CONFIG['grid_limit_kw'])
             else:
-                # No curtailment needed
-                charge_available = min(net_production, battery_kw)
-                charge_possible = min(charge_available, (battery_kwh - soc[i-1]) / efficiency)
+                # No curtailment needed - opportunistic charging for arbitrage
+                if prices.iloc[i] < prices.iloc[i:min(i+6, hours)].mean():  # Price is low
+                    charge_available = min(net_production, battery_kw)
+                    charge_possible = min(charge_available, (battery_kwh - soc[i-1]) / efficiency)
 
-                battery_charge[i] = charge_possible
-                soc[i] = soc[i-1] + charge_possible * efficiency
-                grid_export[i] = net_production - battery_charge[i]
+                    battery_charge[i] = charge_possible
+                    soc[i] = soc[i-1] + charge_possible * efficiency
+                    grid_export[i] = net_production - battery_charge[i]
+                else:
+                    soc[i] = soc[i-1]
+                    grid_export[i] = net_production
         else:
             # Net consumption
             deficit = -net_production
 
-            # Try to discharge battery
-            discharge_available = min(deficit, battery_kw)
-            discharge_possible = min(discharge_available, soc[i-1])
+            # Try to discharge battery if price is high or to avoid peak
+            if prices.iloc[i] > prices.iloc[max(0, i-6):i].mean() or deficit > 30:  # High price or high demand
+                discharge_available = min(deficit, battery_kw)
+                discharge_possible = min(discharge_available, soc[i-1])
 
-            battery_discharge[i] = discharge_possible
-            soc[i] = soc[i-1] - discharge_possible
+                battery_discharge[i] = discharge_possible
+                soc[i] = soc[i-1] - discharge_possible
 
-            # Import remaining from grid
-            grid_import[i] = deficit - discharge_possible
+                # Import remaining from grid
+                grid_import[i] = deficit - discharge_possible
+            else:
+                soc[i] = soc[i-1]
+                grid_import[i] = deficit
 
     results = pd.DataFrame({
         'production_dc': production_dc,
@@ -250,17 +255,17 @@ def calculate_economics(results, battery_kwh, battery_cost_per_kwh):
 
     # Arbitrage value (simplified)
     arbitrage_value = (results['battery_discharge'] * results['prices']).sum() - \
-                     (results['battery_charge'] * results['prices']).sum()
+                     (results['battery_charge'] * results['prices']).sum() * 0.5  # Assuming 50% of charging is from grid
 
-    # Power tariff savings (simplified)
+    # Power tariff savings
     monthly_peaks_no_battery = results.groupby(pd.Grouper(freq='ME'))['grid_import'].max()
-    monthly_peaks_with_battery = (results['grid_import'] - results['battery_discharge']).groupby(pd.Grouper(freq='ME')).max()
+    monthly_peaks_with_battery = (results['grid_import'] - results['battery_discharge']).clip(lower=0).groupby(pd.Grouper(freq='ME')).max()
 
     power_savings = 0
     for peak_no, peak_with in zip(monthly_peaks_no_battery, monthly_peaks_with_battery):
         tariff_no = get_power_tariff(peak_no)
         tariff_with = get_power_tariff(peak_with)
-        power_savings += (tariff_no - tariff_with)  # Monthly savings in NOK
+        power_savings += (tariff_no - tariff_with)  # Tariff is already monthly cost in NOK!
 
     # Total annual savings
     annual_savings = curtailment_value + arbitrage_value + power_savings * 12
@@ -299,22 +304,23 @@ def calculate_economics(results, battery_kwh, battery_cost_per_kwh):
         'investment': investment
     }
 
-def get_power_tariff(peak_kw):
-    """Calculate PROGRESSIVE Lnett power tariff based on peak demand
-
-    Now uses centralized config for correct progressive calculation.
-    """
-    return config.tariff.get_progressive_power_cost(peak_kw)
+# Function get_power_tariff is now imported from config module
+# Using the centralized progressive tariff calculation
 
 def optimize_battery_size():
-    """Find optimal battery size"""
+    """Find optimal battery size using realistic data"""
     battery_sizes = np.arange(10, 201, 10)  # 10 to 200 kWh
     results_list = []
 
-    # Generate data once
-    production_dc, production_ac, inverter_clipping = generate_solar_production()
-    consumption = generate_consumption_profile()
-    prices = get_electricity_prices()
+    # Load real data
+    production_dc, production_ac, inverter_clipping = load_real_solar_production()
+    consumption = generate_realistic_consumption_profile(production_dc.index)
+    prices = get_electricity_prices(production_dc.index)
+
+    print(f"Data loaded: {len(production_dc)} hours")
+    print(f"Max DC production: {production_dc.max():.1f} kW")
+    print(f"Max AC production: {production_ac.max():.1f} kW")
+    print(f"Average consumption: {consumption.mean():.1f} kW")
 
     for battery_kwh in battery_sizes:
         battery_kw = battery_kwh * 0.5  # C-rate of 0.5
@@ -335,34 +341,57 @@ def optimize_battery_size():
                 **economics
             })
 
+            if battery_kwh == 50:  # Log details for 50 kWh battery
+                print(f"\n50 kWh battery @ {cost_per_kwh} NOK/kWh:")
+                print(f"  Annual savings: {economics['annual_savings']:,.0f} NOK")
+                print(f"  NPV: {economics['npv']:,.0f} NOK")
+                print(f"  Payback: {economics['payback']:.1f} years")
+
     return pd.DataFrame(results_list), production_dc, production_ac, inverter_clipping, consumption, prices
 
 # Run optimization
-print("Running battery optimization simulation with DC production tracking...")
+print("="*70)
+print("REALISTIC BATTERY OPTIMIZATION - USING ACTUAL PVGIS DATA")
+print("="*70)
+
 optimization_results, production_dc, production_ac, inverter_clipping, consumption, prices = optimize_battery_size()
 
 # Find optimal size
 optimal_target = optimization_results[optimization_results['cost_scenario'] == 'target'].nlargest(1, 'npv').iloc[0]
 optimal_market = optimization_results[optimization_results['cost_scenario'] == 'market'].nlargest(1, 'npv').iloc[0]
 
-# Run detailed simulation for base case (50 kWh, 25 kW)
+# Run detailed simulation for base case (50 kWh)
 base_battery_kwh = 50
 base_battery_kw = 25
 base_results = simulate_battery_operation(production_dc, production_ac, consumption, prices, base_battery_kwh, base_battery_kw)
 base_economics = calculate_economics(base_results, base_battery_kwh, ECONOMIC_PARAMS['battery_cost_target'])
 
-# Calculate total losses
-total_inverter_clipping = inverter_clipping.sum()
-total_grid_curtailment = base_results['grid_curtailment'].sum()
+# Calculate statistics
 total_dc_production = production_dc.sum()
 total_ac_production = production_ac.sum()
+total_inverter_clipping = inverter_clipping.sum()
+total_grid_curtailment = base_results['grid_curtailment'].sum()
+total_consumption = consumption.sum()
 
-print(f"\n=== Production Analysis ===")
-print(f"Total DC production: {total_dc_production:,.0f} kWh")
-print(f"Total AC production: {total_ac_production:,.0f} kWh")
-print(f"Inverter clipping losses: {total_inverter_clipping:,.0f} kWh ({total_inverter_clipping/total_dc_production*100:.1f}%)")
-print(f"Grid curtailment losses: {total_grid_curtailment:,.0f} kWh ({total_grid_curtailment/total_ac_production*100:.1f}%)")
-print(f"Total losses: {(total_inverter_clipping + total_grid_curtailment):,.0f} kWh")
+print(f"\n=== PRODUCTION ANALYSIS (REAL PVGIS DATA) ===")
+print(f"Total DC production: {total_dc_production:,.0f} kWh/year")
+print(f"Total AC production: {total_ac_production:,.0f} kWh/year")
+print(f"Total consumption: {total_consumption:,.0f} kWh/year")
+print(f"Inverter clipping: {total_inverter_clipping:,.0f} kWh ({total_inverter_clipping/total_dc_production*100:.1f}%)")
+print(f"Grid curtailment: {total_grid_curtailment:,.0f} kWh ({total_grid_curtailment/total_ac_production*100:.1f}%)")
+
+print(f"\n=== CONSUMPTION PROFILE ===")
+print(f"Peak consumption: {consumption.max():.1f} kW")
+print(f"Min consumption: {consumption.min():.1f} kW")
+print(f"Weekday avg (8-17): {consumption[(consumption.index.weekday < 5) & (consumption.index.hour >= 8) & (consumption.index.hour < 17)].mean():.1f} kW")
+print(f"Weekend avg: {consumption[consumption.index.weekday >= 5].mean():.1f} kW")
+print(f"Night avg (0-6): {consumption[consumption.index.hour < 6].mean():.1f} kW")
+
+print(f"\n=== OPTIMAL BATTERY SIZE ===")
+print(f"Optimal @ {ECONOMIC_PARAMS['battery_cost_target']} NOK/kWh: {optimal_target['battery_kwh']:.0f} kWh")
+print(f"NPV: {optimal_target['npv']:,.0f} NOK")
+print(f"Payback: {optimal_target['payback']:.1f} years")
+print(f"Annual savings: {optimal_target['annual_savings']:,.0f} NOK/year")
 
 # Save results
 results_package = {
@@ -381,32 +410,26 @@ results_package = {
     'timestamp': datetime.now().isoformat()
 }
 
-# Save as pickle for easy loading
-with open('results/simulation_results_dc.pkl', 'wb') as f:
+# Save as pickle
+with open('results/realistic_simulation_results.pkl', 'wb') as f:
     pickle.dump(results_package, f)
 
 # Save summary as JSON
 summary = {
+    'data_source': 'PVGIS actual solar data for Stavanger',
     'optimal_battery_kwh': float(optimal_target['battery_kwh']),
     'optimal_battery_kw': float(optimal_target['battery_kw']),
     'npv_at_target_cost': float(optimal_target['npv']),
-    'npv_at_market_cost': float(optimal_market['npv']),
     'payback_years': float(optimal_target['payback']),
     'annual_savings': float(optimal_target['annual_savings']),
-    'break_even_cost': float(ECONOMIC_PARAMS['battery_cost_target']),
-    'market_cost': float(ECONOMIC_PARAMS['battery_cost_market']),
-    'base_case_npv': float(base_economics['npv']),
     'total_dc_production_kwh': float(total_dc_production),
     'total_ac_production_kwh': float(total_ac_production),
+    'total_consumption_kwh': float(total_consumption),
     'inverter_clipping_kwh': float(total_inverter_clipping),
     'grid_curtailment_kwh': float(total_grid_curtailment)
 }
 
-with open('results/simulation_summary_dc.json', 'w') as f:
+with open('results/realistic_simulation_summary.json', 'w') as f:
     json.dump(summary, f, indent=2)
 
-print(f"\nOptimal battery size: {optimal_target['battery_kwh']:.0f} kWh @ {optimal_target['battery_kw']:.0f} kW")
-print(f"NPV at target cost ({ECONOMIC_PARAMS['battery_cost_target']} NOK/kWh): {optimal_target['npv']:,.0f} NOK")
-print(f"NPV at market cost ({ECONOMIC_PARAMS['battery_cost_market']} NOK/kWh): {optimal_market['npv']:,.0f} NOK")
-print(f"Payback period: {optimal_target['payback']:.1f} years")
-print(f"\nResults saved to battery_optimization/results/")
+print("\n✅ Realistic simulation complete! Results saved to results/realistic_simulation_results.pkl")

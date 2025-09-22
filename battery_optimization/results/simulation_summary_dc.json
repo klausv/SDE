@@ -1,15 +1,15 @@
 {
-  "optimal_battery_kwh": 10.0,
-  "optimal_battery_kw": 5.0,
-  "npv_at_target_cost": 109881.49176731116,
-  "npv_at_market_cost": 84881.49176731115,
-  "payback_years": 1.9238477240611531,
-  "annual_savings": 12994.791473010224,
+  "optimal_battery_kwh": 100.0,
+  "optimal_battery_kw": 50.0,
+  "npv_at_target_cost": 3034838.6515817186,
+  "npv_at_market_cost": 2784838.6515817186,
+  "payback_years": 0.7899671139998434,
+  "annual_savings": 316468.8701206485,
   "break_even_cost": 2500.0,
   "market_cost": 5000.0,
-  "base_case_npv": 8400.57823014773,
-  "total_dc_production_kwh": 218043.01898977242,
-  "total_ac_production_kwh": 209647.21875323443,
-  "inverter_clipping_kwh": 4034.9398567425296,
-  "grid_curtailment_kwh": 13383.841063282722
+  "base_case_npv": 4467.407438056009,
+  "total_dc_production_kwh": 217450.01454378545,
+  "total_ac_production_kwh": 209307.48328839167,
+  "inverter_clipping_kwh": 3793.530964518088,
+  "grid_curtailment_kwh": 13052.782414000692
 }

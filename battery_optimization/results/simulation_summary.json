@@ -1,11 +1,11 @@
 {
-  "optimal_battery_kwh": 10.0,
-  "optimal_battery_kw": 5.0,
-  "npv_at_target_cost": 122203.88453896664,
-  "npv_at_market_cost": 97203.88453896662,
-  "payback_years": 1.7628030113962396,
-  "annual_savings": 14181.958981451131,
+  "optimal_battery_kwh": 100.0,
+  "optimal_battery_kw": 50.0,
+  "npv_at_target_cost": 3699046.540788079,
+  "npv_at_market_cost": 3449046.540788079,
+  "payback_years": 0.6570989940846078,
+  "annual_savings": 380460.1776148969,
   "break_even_cost": 2500.0,
   "market_cost": 5000.0,
-  "base_case_npv": 18103.676448260514
+  "base_case_npv": 16102.07911291434
 }
