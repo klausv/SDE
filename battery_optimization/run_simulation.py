@@ -1,6 +1,16 @@
 #!/usr/bin/env python3
 """
-Comprehensive battery optimization simulation for report generation
+Unified battery optimization simulation with DC production tracking (default)
+
+This script merges the functionality of run_report_simulation.py and run_report_simulation_dc.py
+into a single, comprehensive simulation tool. DC tracking is enabled by default as it's critical
+for understanding inverter curtailment losses.
+
+Usage:
+    python run_simulation.py                    # Run with DC tracking (default)
+    python run_simulation.py --output-prefix custom  # Custom output file names
+    python run_simulation.py --battery-range 20 150  # Custom battery size range
+    python run_simulation.py --base-battery 60 30    # Custom base case (kWh kW)
 """
 
 import pandas as pd
@@ -13,6 +23,7 @@ from datetime import datetime, timedelta
 import warnings
 import pickle
 import json
+import argparse
 
 # Import centralized configuration
 from config import config
@@ -33,7 +44,8 @@ SYSTEM_CONFIG = {
     'battery_efficiency': config.battery.efficiency_roundtrip,
     'discount_rate': config.economics.discount_rate,
     'battery_lifetime_years': config.battery.lifetime_years,
-    'eur_to_nok': config.economics.eur_to_nok
+    'eur_to_nok': config.economics.eur_to_nok,
+    'inverter_efficiency': config.solar.inverter_efficiency
 }
 
 # Economic parameters - use centralized config
@@ -51,9 +63,15 @@ ECONOMIC_PARAMS = {
 POWER_TARIFF = config.tariff.power_brackets
 
 def generate_solar_production():
-    """Generate realistic solar production profile"""
+    """Generate realistic solar production profile with DC/AC tracking
+
+    Returns:
+        tuple: (production_dc, production_ac, inverter_clipping)
+    """
     hours = pd.date_range(start='2024-01-01', end='2024-12-31 23:00', freq='h')
-    production = np.zeros(len(hours))
+    production_dc = np.zeros(len(hours))
+    production_ac = np.zeros(len(hours))
+    inverter_clipping = np.zeros(len(hours))
 
     for i, hour in enumerate(hours):
         # Day of year for seasonal variation
@@ -69,15 +87,25 @@ def generate_solar_production():
         else:
             daily = 0
 
-        # Base production
-        base_production = SYSTEM_CONFIG['pv_capacity_kwp'] * seasonal * daily
+        # Base DC production - NOT limited by inverter
+        base_dc_production = SYSTEM_CONFIG['pv_capacity_kwp'] * seasonal * daily
 
         # Add some randomness for clouds
         weather_factor = 0.7 + 0.3 * np.random.random()
 
-        production[i] = min(base_production * weather_factor, SYSTEM_CONFIG['inverter_capacity_kw'])
+        # Full DC production
+        production_dc[i] = base_dc_production * weather_factor
 
-    return pd.Series(production, index=hours, name='production_kw')
+        # AC production after inverter (with clipping)
+        ac_before_limit = production_dc[i] * SYSTEM_CONFIG['inverter_efficiency']
+        production_ac[i] = min(ac_before_limit, SYSTEM_CONFIG['inverter_capacity_kw'])
+
+        # Track inverter clipping separately (critical for understanding losses)
+        inverter_clipping[i] = max(0, ac_before_limit - SYSTEM_CONFIG['inverter_capacity_kw'])
+
+    return (pd.Series(production_dc, index=hours, name='production_dc'),
+            pd.Series(production_ac, index=hours, name='production_ac'),
+            pd.Series(inverter_clipping, index=hours, name='inverter_clipping'))
 
 def generate_consumption_profile():
     """Generate realistic consumption profile"""
@@ -199,13 +227,25 @@ def get_electricity_prices():
 
     return pd.Series(prices, index=hours, name='electricity_price')
 
-def simulate_battery_operation(production, consumption, prices, battery_kwh, battery_kw):
-    """Simulate battery operation for a full year"""
-    hours = len(production)
+def simulate_battery_operation(production_dc, production_ac, consumption, prices, battery_kwh, battery_kw):
+    """Simulate battery operation for a full year with DC/AC tracking
+
+    Args:
+        production_dc: DC production series (for tracking total energy)
+        production_ac: AC production series (for actual grid operations)
+        consumption: Consumption series
+        prices: Electricity price series
+        battery_kwh: Battery capacity in kWh
+        battery_kw: Battery power rating in kW
+
+    Returns:
+        DataFrame with complete simulation results including DC/AC tracking
+    """
+    hours = len(production_ac)
     soc = np.zeros(hours)  # State of charge
     battery_charge = np.zeros(hours)
     battery_discharge = np.zeros(hours)
-    curtailment = np.zeros(hours)
+    grid_curtailment = np.zeros(hours)  # Curtailment due to grid limit
     grid_import = np.zeros(hours)
     grid_export = np.zeros(hours)
 
@@ -213,13 +253,14 @@ def simulate_battery_operation(production, consumption, prices, battery_kwh, bat
     efficiency = SYSTEM_CONFIG['battery_efficiency']
 
     for i in range(1, hours):
-        net_production = production.iloc[i] - consumption.iloc[i]
+        # Net production using AC values (after inverter)
+        net_production = production_ac.iloc[i] - consumption.iloc[i]
 
         if net_production > 0:
             # Excess production
-            if production.iloc[i] > SYSTEM_CONFIG['grid_limit_kw']:
+            if production_ac.iloc[i] > SYSTEM_CONFIG['grid_limit_kw']:
                 # Need to curtail or store
-                excess = production.iloc[i] - SYSTEM_CONFIG['grid_limit_kw']
+                excess = production_ac.iloc[i] - SYSTEM_CONFIG['grid_limit_kw']
 
                 # Try to charge battery
                 charge_available = min(excess, battery_kw)
@@ -227,10 +268,10 @@ def simulate_battery_operation(production, consumption, prices, battery_kwh, bat
 
                 battery_charge[i] = charge_possible
                 soc[i] = soc[i-1] + charge_possible * efficiency
-                curtailment[i] = excess - charge_possible
+                grid_curtailment[i] = excess - charge_possible
 
                 # Export remaining to grid (up to limit)
-                export_available = production.iloc[i] - consumption.iloc[i] - curtailment[i] - battery_charge[i]
+                export_available = production_ac.iloc[i] - consumption.iloc[i] - grid_curtailment[i] - battery_charge[i]
                 grid_export[i] = min(export_available, SYSTEM_CONFIG['grid_limit_kw'])
             else:
                 # No curtailment needed
@@ -255,13 +296,14 @@ def simulate_battery_operation(production, consumption, prices, battery_kwh, bat
             grid_import[i] = deficit - discharge_possible
 
     results = pd.DataFrame({
-        'production': production,
+        'production_dc': production_dc,
+        'production_ac': production_ac,
         'consumption': consumption,
         'prices': prices,
         'soc': soc,
         'battery_charge': battery_charge,
         'battery_discharge': battery_discharge,
-        'curtailment': curtailment,
+        'grid_curtailment': grid_curtailment,
         'grid_import': grid_import,
         'grid_export': grid_export
     })
@@ -271,7 +313,7 @@ def simulate_battery_operation(production, consumption, prices, battery_kwh, bat
 def calculate_economics(results, battery_kwh, battery_cost_per_kwh):
     """Calculate economic metrics"""
     # Energy savings from avoided curtailment
-    curtailment_value = results['curtailment'].sum() * ECONOMIC_PARAMS['spot_price_avg_2024']
+    curtailment_value = results['grid_curtailment'].sum() * ECONOMIC_PARAMS['spot_price_avg_2024']
 
     # Arbitrage value (simplified)
     arbitrage_value = (results['battery_discharge'] * results['prices']).sum() - \
@@ -285,10 +327,10 @@ def calculate_economics(results, battery_kwh, battery_cost_per_kwh):
     for peak_no, peak_with in zip(monthly_peaks_no_battery, monthly_peaks_with_battery):
         tariff_no = get_power_tariff(peak_no)
         tariff_with = get_power_tariff(peak_with)
-        power_savings += (tariff_no - tariff_with)  # Monthly savings in NOK (already total cost, not per kW!)
+        power_savings += (tariff_no - tariff_with)  # Monthly savings in NOK
 
     # Total annual savings
-    annual_savings = curtailment_value + arbitrage_value + power_savings * 12  # power_savings is monthly
+    annual_savings = curtailment_value + arbitrage_value + power_savings * 12
 
     # Investment
     investment = battery_kwh * battery_cost_per_kwh
@@ -327,25 +369,36 @@ def calculate_economics(results, battery_kwh, battery_cost_per_kwh):
 def get_power_tariff(peak_kw):
     """Calculate PROGRESSIVE Lnett power tariff based on peak demand
 
-    Now uses centralized config for correct progressive calculation.
+    Uses centralized config for correct progressive calculation.
     """
     return config.tariff.get_progressive_power_cost(peak_kw)
 
-def optimize_battery_size():
-    """Find optimal battery size"""
-    battery_sizes = np.arange(10, 201, 10)  # 10 to 200 kWh
+def optimize_battery_size(battery_min=10, battery_max=200, step=10):
+    """Find optimal battery size within specified range
+
+    Args:
+        battery_min: Minimum battery size to test (kWh)
+        battery_max: Maximum battery size to test (kWh)
+        step: Step size for battery range (kWh)
+
+    Returns:
+        Tuple of optimization results and data series
+    """
+    battery_sizes = np.arange(battery_min, battery_max + 1, step)
     results_list = []
 
-    # Generate data once
-    production = generate_solar_production()
+    # Generate data once (DC tracking is always enabled)
+    production_dc, production_ac, inverter_clipping = generate_solar_production()
     consumption = generate_consumption_profile()
     prices = get_electricity_prices()
+
+    print(f"Testing battery sizes from {battery_min} to {battery_max} kWh...")
 
     for battery_kwh in battery_sizes:
         battery_kw = battery_kwh * 0.5  # C-rate of 0.5
 
         # Simulate operation
-        sim_results = simulate_battery_operation(production, consumption, prices, battery_kwh, battery_kw)
+        sim_results = simulate_battery_operation(production_dc, production_ac, consumption, prices, battery_kwh, battery_kw)
 
         # Calculate economics at different price points
         for cost_name, cost_per_kwh in [('market', ECONOMIC_PARAMS['battery_cost_market']),
@@ -360,60 +413,121 @@ def optimize_battery_size():
                 **economics
             })
 
-    return pd.DataFrame(results_list), production, consumption, prices
+    return pd.DataFrame(results_list), production_dc, production_ac, inverter_clipping, consumption, prices
 
-# Run optimization
-print("Running battery optimization simulation...")
-optimization_results, production, consumption, prices = optimize_battery_size()
+def print_production_analysis(production_dc, production_ac, inverter_clipping, base_results):
+    """Print detailed production and loss analysis"""
+    total_inverter_clipping = inverter_clipping.sum()
+    total_grid_curtailment = base_results['grid_curtailment'].sum()
+    total_dc_production = production_dc.sum()
+    total_ac_production = production_ac.sum()
 
-# Find optimal size
-optimal_target = optimization_results[optimization_results['cost_scenario'] == 'target'].nlargest(1, 'npv').iloc[0]
-optimal_market = optimization_results[optimization_results['cost_scenario'] == 'market'].nlargest(1, 'npv').iloc[0]
+    print(f"\n=== Production Analysis (Critical for Understanding Losses) ===")
+    print(f"Total DC production: {total_dc_production:,.0f} kWh")
+    print(f"Total AC production: {total_ac_production:,.0f} kWh")
+    print(f"Inverter clipping losses: {total_inverter_clipping:,.0f} kWh ({total_inverter_clipping/total_dc_production*100:.1f}%)")
+    print(f"Grid curtailment losses: {total_grid_curtailment:,.0f} kWh ({total_grid_curtailment/total_ac_production*100:.1f}%)")
+    print(f"Total losses: {(total_inverter_clipping + total_grid_curtailment):,.0f} kWh")
+    print(f"Overall efficiency (AC/DC): {total_ac_production/total_dc_production*100:.1f}%")
 
-# Run detailed simulation for base case (50 kWh, 25 kW)
-base_battery_kwh = 50
-base_battery_kw = 25
-base_results = simulate_battery_operation(production, consumption, prices, base_battery_kwh, base_battery_kw)
-base_economics = calculate_economics(base_results, base_battery_kwh, ECONOMIC_PARAMS['battery_cost_target'])
+    return {
+        'total_dc_production_kwh': float(total_dc_production),
+        'total_ac_production_kwh': float(total_ac_production),
+        'inverter_clipping_kwh': float(total_inverter_clipping),
+        'grid_curtailment_kwh': float(total_grid_curtailment)
+    }
 
-# Save results
-results_package = {
-    'system_config': SYSTEM_CONFIG,
-    'economic_params': ECONOMIC_PARAMS,
-    'optimization_results': optimization_results,
-    'base_results': base_results,
-    'base_economics': base_economics,
-    'optimal_target': optimal_target.to_dict(),
-    'optimal_market': optimal_market.to_dict(),
-    'production': production,
-    'consumption': consumption,
-    'prices': prices,
-    'timestamp': datetime.now().isoformat()
-}
+def main():
+    """Main simulation function with command-line argument support"""
+    parser = argparse.ArgumentParser(description='Battery optimization simulation with DC production tracking')
+    parser.add_argument('--output-prefix', default='simulation',
+                       help='Prefix for output files (default: simulation)')
+    parser.add_argument('--battery-range', nargs=2, type=int, default=[10, 200],
+                       metavar=('MIN', 'MAX'), help='Battery size range in kWh (default: 10 200)')
+    parser.add_argument('--base-battery', nargs=2, type=float, default=[50, 25],
+                       metavar=('KWH', 'KW'), help='Base case battery size (default: 50 25)')
+    parser.add_argument('--step', type=int, default=10,
+                       help='Battery size step in kWh (default: 10)')
 
-# Save as pickle for easy loading
-with open('results/simulation_results.pkl', 'wb') as f:
-    pickle.dump(results_package, f)
+    args = parser.parse_args()
 
-# Save summary as JSON
-summary = {
-    'optimal_battery_kwh': float(optimal_target['battery_kwh']),
-    'optimal_battery_kw': float(optimal_target['battery_kw']),
-    'npv_at_target_cost': float(optimal_target['npv']),
-    'npv_at_market_cost': float(optimal_market['npv']),
-    'payback_years': float(optimal_target['payback']),
-    'annual_savings': float(optimal_target['annual_savings']),
-    'break_even_cost': float(ECONOMIC_PARAMS['battery_cost_target']),
-    'market_cost': float(ECONOMIC_PARAMS['battery_cost_market']),
-    'base_case_npv': float(base_economics['npv'])
-}
+    print("Battery Optimization Simulation with DC Production Tracking")
+    print("=" * 60)
+    print(f"Battery range: {args.battery_range[0]}-{args.battery_range[1]} kWh (step: {args.step})")
+    print(f"Base case: {args.base_battery[0]} kWh @ {args.base_battery[1]} kW")
+    print(f"Output prefix: {args.output_prefix}")
+    print(f"DC tracking: ENABLED (default - critical for inverter loss analysis)")
 
-with open('results/simulation_summary.json', 'w') as f:
-    json.dump(summary, f, indent=2)
+    # Run optimization
+    optimization_results, production_dc, production_ac, inverter_clipping, consumption, prices = optimize_battery_size(
+        battery_min=args.battery_range[0],
+        battery_max=args.battery_range[1],
+        step=args.step
+    )
 
-print(f"Simulation complete!")
-print(f"Optimal battery size: {optimal_target['battery_kwh']:.0f} kWh @ {optimal_target['battery_kw']:.0f} kW")
-print(f"NPV at target cost ({ECONOMIC_PARAMS['battery_cost_target']} NOK/kWh): {optimal_target['npv']:,.0f} NOK")
-print(f"NPV at market cost ({ECONOMIC_PARAMS['battery_cost_market']} NOK/kWh): {optimal_market['npv']:,.0f} NOK")
-print(f"Payback period: {optimal_target['payback']:.1f} years")
-print(f"Results saved to battery_optimization/results/")
+    # Find optimal sizes
+    optimal_target = optimization_results[optimization_results['cost_scenario'] == 'target'].nlargest(1, 'npv').iloc[0]
+    optimal_market = optimization_results[optimization_results['cost_scenario'] == 'market'].nlargest(1, 'npv').iloc[0]
+
+    # Run detailed simulation for base case
+    base_battery_kwh, base_battery_kw = args.base_battery
+    base_results = simulate_battery_operation(production_dc, production_ac, consumption, prices,
+                                            base_battery_kwh, base_battery_kw)
+    base_economics = calculate_economics(base_results, base_battery_kwh, ECONOMIC_PARAMS['battery_cost_target'])
+
+    # Print production analysis (critical for understanding inverter losses)
+    production_stats = print_production_analysis(production_dc, production_ac, inverter_clipping, base_results)
+
+    # Prepare complete results package
+    results_package = {
+        'system_config': SYSTEM_CONFIG,
+        'economic_params': ECONOMIC_PARAMS,
+        'optimization_results': optimization_results,
+        'base_results': base_results,
+        'base_economics': base_economics,
+        'optimal_target': optimal_target.to_dict(),
+        'optimal_market': optimal_market.to_dict(),
+        'production_dc': production_dc,
+        'production_ac': production_ac,
+        'inverter_clipping': inverter_clipping,
+        'consumption': consumption,
+        'prices': prices,
+        'timestamp': datetime.now().isoformat(),
+        'args': vars(args)
+    }
+
+    # Save as pickle for easy loading
+    pickle_file = f'results/{args.output_prefix}_results.pkl'
+    with open(pickle_file, 'wb') as f:
+        pickle.dump(results_package, f)
+
+    # Save summary as JSON
+    summary = {
+        'optimal_battery_kwh': float(optimal_target['battery_kwh']),
+        'optimal_battery_kw': float(optimal_target['battery_kw']),
+        'npv_at_target_cost': float(optimal_target['npv']),
+        'npv_at_market_cost': float(optimal_market['npv']),
+        'payback_years': float(optimal_target['payback']),
+        'annual_savings': float(optimal_target['annual_savings']),
+        'break_even_cost': float(ECONOMIC_PARAMS['battery_cost_target']),
+        'market_cost': float(ECONOMIC_PARAMS['battery_cost_market']),
+        'base_case_npv': float(base_economics['npv']),
+        **production_stats
+    }
+
+    json_file = f'results/{args.output_prefix}_summary.json'
+    with open(json_file, 'w') as f:
+        json.dump(summary, f, indent=2)
+
+    # Print final results
+    print(f"\n=== Optimization Results ===")
+    print(f"Optimal battery size: {optimal_target['battery_kwh']:.0f} kWh @ {optimal_target['battery_kw']:.0f} kW")
+    print(f"NPV at target cost ({ECONOMIC_PARAMS['battery_cost_target']} NOK/kWh): {optimal_target['npv']:,.0f} NOK")
+    print(f"NPV at market cost ({ECONOMIC_PARAMS['battery_cost_market']} NOK/kWh): {optimal_market['npv']:,.0f} NOK")
+    print(f"Payback period: {optimal_target['payback']:.1f} years")
+    print(f"\nResults saved:")
+    print(f"  - {pickle_file}")
+    print(f"  - {json_file}")
+
+if __name__ == "__main__":
+    main()
