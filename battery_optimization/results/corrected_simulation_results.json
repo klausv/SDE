@@ -1,0 +1,41 @@
+{
+  "timestamp": "2025-09-23T02:45:19.824346",
+  "configuration": {
+    "pv_capacity_kwp": 138.55,
+    "inverter_capacity_kw": 100,
+    "grid_export_limit_kw": 77,
+    "annual_consumption_kwh": 90000.00000000001,
+    "battery_kwh": 10,
+    "battery_kw": 5,
+    "battery_efficiency": 0.95,
+    "battery_cost_per_kwh": 2500
+  },
+  "production": {
+    "total_dc_kwh": 128289.20066999999,
+    "total_ac_kwh": 125278.37792999999,
+    "inverter_clipping_kwh": 3010.8227399999996
+  },
+  "with_battery": {
+    "grid_import_kwh": 48168.498537862804,
+    "grid_export_kwh": 80116.58548655579,
+    "curtailment_kwh": 3029.339280892499,
+    "battery_charged_kwh": 3135.402055553137,
+    "battery_discharged_kwh": 2834.4503551367043,
+    "avg_peak_kw": 19.184856753069578,
+    "total_cost_nok": 5553.6607250540255
+  },
+  "without_battery": {
+    "grid_import_kwh": 51002.94889299924,
+    "grid_export_kwh": 83243.43667859468,
+    "curtailment_kwh": 3037.890144406536,
+    "avg_peak_kw": 19.184856753069578,
+    "total_cost_nok": 5039.069127646369
+  },
+  "economics": {
+    "battery_cost_nok": 25000,
+    "annual_savings_nok": -514.5915974076561,
+    "npv_nok": -30341.284810412566,
+    "payback_years": Infinity,
+    "irr_percent": -100
+  }
+}

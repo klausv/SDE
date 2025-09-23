@@ -1,13 +1,14 @@
 {
   "data_source": "PVGIS actual solar data for Stavanger",
-  "optimal_battery_kwh": 10.0,
-  "optimal_battery_kw": 5.0,
-  "npv_at_target_cost": 61296.05856871604,
-  "payback_years": 3.0069907624794507,
-  "annual_savings": 8313.95969417144,
+  "optimal_battery_kwh": 10,
+  "optimal_battery_kw": 5,
+  "battery_efficiency": 0.95,
+  "annual_consumption_kwh": 90000.00000000001,
+  "npv_at_target_cost": -30341.284810412566,
+  "payback_years": Infinity,
+  "annual_savings": -514.5915974076561,
   "total_dc_production_kwh": 128289.20066999999,
-  "total_ac_production_kwh": 123249.9821016,
-  "total_consumption_kwh": 210469.73402670224,
-  "inverter_clipping_kwh": 2473.4345549999994,
-  "grid_curtailment_kwh": 4796.714141075332
+  "total_ac_production_kwh": 125278.37792999999,
+  "inverter_clipping_kwh": 3010.8227399999996,
+  "grid_curtailment_kwh": 3029.339280892499
 }
