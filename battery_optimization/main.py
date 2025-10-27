@@ -45,6 +45,15 @@ def run_simulation(args):
 def run_optimization(args):
     """Alias for simulation - both use real data now."""
     print("Note: 'optimize' now runs the same real-data simulation")
+    
+    # Add default attributes for simulation if not present
+    if not hasattr(args, 'battery_range'):
+        args.battery_range = None
+    if not hasattr(args, 'output_prefix'):
+        args.output_prefix = None
+    if not hasattr(args, 'base_battery'):
+        args.base_battery = None
+    
     run_simulation(args)
 
 def run_analysis(args):
@@ -66,9 +75,17 @@ def run_analysis(args):
             print(f"Warning: {script} not found")
 
 def generate_report(args):
-    """Generate comprehensive analysis report."""
+    """Generate comprehensive battery optimization report"""
     print("Generating comprehensive report...")
-
+    
+    # Add default attributes for simulation if not present
+    if not hasattr(args, 'battery_range'):
+        args.battery_range = None
+    if not hasattr(args, 'output_prefix'):
+        args.output_prefix = None
+    if not hasattr(args, 'base_battery'):
+        args.base_battery = None
+    
     # Run simulation first to get fresh data
     run_simulation(args)
 

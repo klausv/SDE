@@ -92,6 +92,14 @@ class BatteryOptimizer:
 
         # Define objective function
         def objective(x):
+            """
+            This Python function named "objective" takes a tuple x as input containing two values
+            (capacity_kwh and power_kw) and does not have any specific implementation provided.
+            
+            :param x: The `objective` function takes a tuple `x` as input, where `x` contains two
+            elements: `capacity_kwh` and `power_kw`. These elements represent the capacity in
+            kilowatt-hours and power in kilowatts, respectively
+            """
             capacity_kwh, power_kw = x
 
             # Create battery spec

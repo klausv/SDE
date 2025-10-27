@@ -339,7 +339,7 @@ if __name__ == "__main__":
         inverter_capacity_kw=110,
         latitude=58.97,
         longitude=5.73,
-        tilt=25,
+        tilt=15,
         azimuth=180
     )
 

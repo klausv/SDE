@@ -49,7 +49,7 @@ def load_real_solar_production():
     print("Loading real PVGIS solar production data...")
 
     # Load the PVGIS CSV data
-    df = pd.read_csv('data/pv_profiles/pvgis_58.97_5.73_138.55kWp.csv', index_col=0, parse_dates=True)
+    df = pd.read_csv('data/pv_profiles/pvgis_58.97_5.73_150kWp.csv', index_col=0, parse_dates=True)
 
     # Convert to 2024 dates (PVGIS uses 2020)
     df.index = df.index.map(lambda x: x.replace(year=2024))

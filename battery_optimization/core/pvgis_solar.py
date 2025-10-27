@@ -19,8 +19,8 @@ class PVGISProduction:
         lat: float = 58.97,  # Stavanger
         lon: float = 5.73,
         pv_capacity_kwp: float = 138.55,
-        tilt: float = 30,
-        azimuth: float = 180,  # South
+        tilt: float = 15,
+        azimuth: float = 173,  # South
         system_loss: float = 7  # Realistisk systemtap
     ):
         self.lat = lat

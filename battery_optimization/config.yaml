@@ -11,7 +11,7 @@ solar:
   pv_capacity_kwp: 138.55
   inverter_limit_kw: 110
   tilt_degrees: 30
-  azimuth_degrees: 180  # South
+  azimuth_degrees: 173  # South
   grid_export_limit_kw: 77
 
 # Consumption

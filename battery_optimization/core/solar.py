@@ -14,8 +14,8 @@ class SolarSystem:
         pv_capacity_kwp: float = 138.55,
         inverter_limit_kw: float = 110,
         location: str = 'stavanger',
-        tilt: float = 30,
-        azimuth: float = 180
+        tilt: float = 15,
+        azimuth: float = 173
     ):
         self.pv_capacity_kwp = pv_capacity_kwp
         self.inverter_limit_kw = inverter_limit_kw

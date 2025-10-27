@@ -97,6 +97,23 @@ class MILPBatteryOptimizer:
 
         # Battery sizing (continuous)
         battery_kwh = solver.NumVar(10, 200, 'battery_kwh')
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
         battery_kw = solver.NumVar(10, 100, 'battery_kw')
 
         # Operational variables for each timestep

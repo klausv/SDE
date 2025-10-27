@@ -24,10 +24,10 @@ class SolarSystemConfig:
     """Solar PV system configuration"""
     # Standardized values based on PVGIS and actual system
     pv_capacity_kwp: float = 138.55  # DC capacity from PVGIS
-    inverter_capacity_kw: float = 100  # AC capacity (GROWATT MAX 100KTL3)
+    inverter_capacity_kw: float = 110  # AC capacity (GROWATT MAX 110KTL3)
     grid_export_limit_kw: float = 77  # 70% of inverter (safety margin)
     tilt_degrees: float = 30.0  # Faktisk takhelning Snødevegen
-    azimuth_degrees: float = 180.0  # Due south
+    azimuth_degrees: float = 173.0  # South
     inverter_efficiency: float = 0.98
     dc_to_ac_loss: float = 0.02  # 2% conversion loss
 
@@ -168,9 +168,47 @@ class BatteryOptimizationConfig:
         if config_file.exists():
             with open(config_file, 'r') as f:
                 data = yaml.safe_load(f)
-            # TODO: Implement proper YAML to dataclass conversion
-            # For now, just return default config
-            return cls()
+
+            # Map YAML keys to dataclass fields (handle naming differences)
+            site_data = data.get('site', {})
+            solar_data = data.get('solar', {})
+            consumption_data = data.get('consumption', {})
+            battery_data = data.get('battery', {})
+            economics_data = data.get('economics', {})
+            analysis_data = data.get('analysis', {})
+
+            # Handle solar config naming differences
+            if 'inverter_limit_kw' in solar_data:
+                solar_data['inverter_capacity_kw'] = solar_data.pop('inverter_limit_kw')
+
+            # Handle battery naming differences (degradation_rate in YAML, degradation_rate_yearly in code)
+            if 'degradation_rate' in economics_data:
+                battery_data['degradation_rate_yearly'] = economics_data['degradation_rate']
+            if 'project_years' in economics_data:
+                battery_data['lifetime_years'] = economics_data['project_years']
+
+            # Create config objects from YAML data
+            return cls(
+                location=LocationConfig(
+                    name=site_data.get('location', LocationConfig.name),
+                    latitude=site_data.get('latitude', LocationConfig.latitude),
+                    longitude=site_data.get('longitude', LocationConfig.longitude),
+                ),
+                solar=SolarSystemConfig(**{k: v for k, v in solar_data.items()
+                                           if k in SolarSystemConfig.__dataclass_fields__}),
+                consumption=ConsumptionConfig(
+                    annual_kwh=consumption_data.get('annual_kwh', ConsumptionConfig.annual_kwh),
+                    profile_type=consumption_data.get('profile_type', ConsumptionConfig.profile_type),
+                ),
+                battery=BatteryConfig(**{k: v for k, v in battery_data.items()
+                                        if k in BatteryConfig.__dataclass_fields__}),
+                economics=EconomicConfig(
+                    discount_rate=economics_data.get('discount_rate', EconomicConfig.discount_rate),
+                    project_lifetime_years=economics_data.get('project_years', EconomicConfig.project_lifetime_years),
+                ),
+                analysis=AnalysisConfig(**{k: v for k, v in analysis_data.items()
+                                          if k in AnalysisConfig.__dataclass_fields__}),
+            )
         return cls()
 
     def to_dict(self) -> dict:
@@ -188,8 +226,8 @@ class BatteryOptimizationConfig:
         }
 
 
-# Global configuration instance
-config = BatteryOptimizationConfig()
+# Global configuration instance - loads from config.yaml
+config = BatteryOptimizationConfig.from_yaml()
 
 # Backward compatibility aliases (for gradual migration)
 system_config = config.solar

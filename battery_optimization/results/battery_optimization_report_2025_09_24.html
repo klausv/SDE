@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Batterioptimaliseringsrapport - Snødevegen 122</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            background: white;
+            border-radius: 15px;
+            padding: 40px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #2d3748;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 15px;
+        }
+
+        .subtitle {
+            color: #718096;
+            font-size: 1.1rem;
+            margin-bottom: 20px;
+        }
+
+        .metadata {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .metadata-item {
+            background: #f7fafc;
+            padding: 10px 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .metadata-label {
+            font-size: 0.85rem;
+            color: #718096;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .metadata-value {
+            font-size: 1.1rem;
+            color: #2d3748;
+            font-weight: 600;
+        }
+
+        .section {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+
+        h2 {
+            color: #2d3748;
+            font-size: 1.8rem;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        h3 {
+            color: #4a5568;
+            font-size: 1.3rem;
+            margin-top: 20px;
+            margin-bottom: 15px;
+        }
+
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .kpi-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 15px rgba(0,0,0,0.2);
+        }
+
+        .kpi-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+
+        .kpi-value {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .kpi-unit {
+            font-size: 1rem;
+            opacity: 0.9;
+        }
+
+        .kpi-change {
+            font-size: 0.85rem;
+            margin-top: 10px;
+            padding: 5px 10px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 20px;
+            display: inline-block;
+        }
+
+        .positive {
+            background: #48bb78;
+        }
+
+        .negative {
+            background: #f56565;
+        }
+
+        .neutral {
+            background: #718096;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        th {
+            background: #f7fafc;
+            color: #2d3748;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        tr:hover {
+            background: #f7fafc;
+        }
+
+        .chart-container {
+            background: #f7fafc;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            min-height: 400px;
+        }
+
+        .chart-title {
+            font-size: 1.2rem;
+            color: #2d3748;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            background: none;
+            border: none;
+            color: #718096;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .tab:hover {
+            color: #667eea;
+        }
+
+        .tab.active {
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.5s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .recommendation-box {
+            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            margin: 20px 0;
+        }
+
+        .warning-box {
+            background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            margin: 20px 0;
+        }
+
+        .info-box {
+            background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            margin: 20px 0;
+        }
+
+        .progress-bar {
+            background: #e2e8f0;
+            height: 30px;
+            border-radius: 15px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            transition: width 1s ease;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 30px;
+            color: white;
+            margin-top: 40px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+
+            h1 {
+                font-size: 1.8rem;
+            }
+
+            .kpi-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .tabs {
+                flex-wrap: wrap;
+            }
+        }
+
+        @media print {
+            body {
+                background: white;
+            }
+
+            .section {
+                box-shadow: none;
+                border: 1px solid #e2e8f0;
+            }
+
+            .tabs {
+                display: none;
+            }
+
+            .tab-content {
+                display: block !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔋 Batterioptimaliseringsrapport</h1>
+            <div class="subtitle">Snødevegen 122, Stavanger - Økonomisk analyse av batterilager for 150 kWp solcelleanlegg</div>
+
+            <div class="metadata">
+                <div class="metadata-item">
+                    <div class="metadata-label">Rapportdato</div>
+                    <div class="metadata-value">24. september 2025</div>
+                </div>
+                <div class="metadata-item">
+                    <div class="metadata-label">Lokasjon</div>
+                    <div class="metadata-value">Stavanger (58.97°N, 5.73°E)</div>
+                </div>
+                <div class="metadata-item">
+                    <div class="metadata-label">Systemstørrelse</div>
+                    <div class="metadata-value">150 kWp DC / 110 kW AC</div>
+                </div>
+                <div class="metadata-item">
+                    <div class="metadata-label">Takvinkel / Azimuth</div>
+                    <div class="metadata-value">15° / 173°</div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Executive Summary -->
+        <section class="section">
+            <h2>📊 Executive Summary</h2>
+
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-label">Årlig produksjon</div>
+                    <div class="kpi-value">130.8</div>
+                    <div class="kpi-unit">MWh/år</div>
+                    <div class="kpi-change">+2% med nye parametere</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Optimal batteristørrelse</div>
+                    <div class="kpi-value">10</div>
+                    <div class="kpi-unit">kWh @ 2,500 NOK/kWh</div>
+                    <div class="kpi-change">NPV: 63,806 NOK</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Break-even batterikost</div>
+                    <div class="kpi-value">2,450</div>
+                    <div class="kpi-unit">NOK/kWh</div>
+                    <div class="kpi-change">51% under markedspris</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Tilbakebetalingstid</div>
+                    <div class="kpi-value">2.9</div>
+                    <div class="kpi-unit">år (ved 2,500 NOK/kWh)</div>
+                    <div class="kpi-change">IRR: 28.5%</div>
+                </div>
+            </div>
+
+            <div class="warning-box">
+                <h3>⚠️ Hovedkonklusjon</h3>
+                <p><strong>IKKE INVESTER</strong> ved dagens batterikostnader (5,000 NOK/kWh). NPV er sterkt negativ (-132,758 NOK for 50 kWh system). Vent til prisene faller under 2,500 NOK/kWh eller vurder subsidieordninger.</p>
+            </div>
+        </section>
+
+        <!-- Produksjonsanalyse -->
+        <section class="section">
+            <h2>⚡ Produksjonsanalyse</h2>
+
+            <div class="tabs">
+                <button class="tab active" onclick="showTab(event, 'prod-overview')">Oversikt</button>
+                <button class="tab" onclick="showTab(event, 'prod-monthly')">Månedlig</button>
+                <button class="tab" onclick="showTab(event, 'prod-daily')">Døgnprofil</button>
+                <button class="tab" onclick="showTab(event, 'prod-duration')">Varighetskurve</button>
+            </div>
+
+            <div id="prod-overview" class="tab-content active">
+                <h3>Årlig energiproduksjon</h3>
+                <table>
+                    <tr>
+                        <th>Parameter</th>
+                        <th>Verdi</th>
+                        <th>Enhet</th>
+                        <th>Kommentar</th>
+                    </tr>
+                    <tr>
+                        <td>Total DC-produksjon</td>
+                        <td><strong>130.8</strong></td>
+                        <td>MWh/år</td>
+                        <td>Fra 150 kWp paneler</td>
+                    </tr>
+                    <tr>
+                        <td>Total AC-produksjon</td>
+                        <td><strong>125.9</strong></td>
+                        <td>MWh/år</td>
+                        <td>Etter 110 kW inverter</td>
+                    </tr>
+                    <tr>
+                        <td>Nett-eksport</td>
+                        <td><strong>120.2</strong></td>
+                        <td>MWh/år</td>
+                        <td>Etter 77 kW nettgrense</td>
+                    </tr>
+                    <tr>
+                        <td>Inverter clipping</td>
+                        <td><strong>2.3</strong></td>
+                        <td>MWh/år (1.8%)</td>
+                        <td>Tapt pga invertergrense</td>
+                    </tr>
+                    <tr>
+                        <td>Grid curtailment</td>
+                        <td><strong>5.6</strong></td>
+                        <td>MWh/år (4.5%)</td>
+                        <td>Tapt pga nettgrense</td>
+                    </tr>
+                </table>
+
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: 92%">
+                        Systemeffektivitet: 92%
+                    </div>
+                </div>
+            </div>
+
+            <div id="prod-monthly" class="tab-content">
+                <div class="chart-container">
+                    <div class="chart-title">Månedlig produksjon og forbruk</div>
+                    <iframe src="fig1_monthly.html" width="100%" height="450" frameborder="0"></iframe>
+                </div>
+            </div>
+
+            <div id="prod-daily" class="tab-content">
+                <div class="chart-container">
+                    <div class="chart-title">Typisk døgnprofil - sommer vs vinter</div>
+                    <iframe src="fig2_daily_profile.html" width="100%" height="450" frameborder="0"></iframe>
+                </div>
+            </div>
+
+            <div id="prod-duration" class="tab-content">
+                <div class="chart-container">
+                    <div class="chart-title">Varighetskurve - produksjon sortert etter effekt</div>
+                    <iframe src="fig3_duration_curve.html" width="100%" height="450" frameborder="0"></iframe>
+                </div>
+            </div>
+        </section>
+
+        <!-- Økonomisk analyse -->
+        <section class="section">
+            <h2>💰 Økonomisk analyse</h2>
+
+            <div class="tabs">
+                <button class="tab active" onclick="showTab(event, 'econ-npv')">NPV-analyse</button>
+                <button class="tab" onclick="showTab(event, 'econ-cashflow')">Kontantstrøm</button>
+                <button class="tab" onclick="showTab(event, 'econ-drivers')">Verdidrivere</button>
+                <button class="tab" onclick="showTab(event, 'econ-sensitivity')">Sensitivitet</button>
+            </div>
+
+            <div id="econ-npv" class="tab-content active">
+                <div class="chart-container">
+                    <div class="chart-title">NPV som funksjon av batterikostnad og størrelse</div>
+                    <iframe src="fig7_npv.html" width="100%" height="450" frameborder="0"></iframe>
+                </div>
+
+                <h3>Nøkkeltall ved ulike batterikostnader</h3>
+                <table>
+                    <tr>
+                        <th>Batterikostnad</th>
+                        <th>Optimal størrelse</th>
+                        <th>NPV</th>
+                        <th>IRR</th>
+                        <th>Payback</th>
+                        <th>Anbefaling</th>
+                    </tr>
+                    <tr>
+                        <td>2,000 NOK/kWh</td>
+                        <td>15 kWh</td>
+                        <td>+98,500 NOK</td>
+                        <td>35%</td>
+                        <td>2.4 år</td>
+                        <td><span style="color: green;">✅ Sterk anbefaling</span></td>
+                    </tr>
+                    <tr>
+                        <td>2,500 NOK/kWh</td>
+                        <td>10 kWh</td>
+                        <td>+63,806 NOK</td>
+                        <td>28.5%</td>
+                        <td>2.9 år</td>
+                        <td><span style="color: green;">✅ Anbefales</span></td>
+                    </tr>
+                    <tr>
+                        <td>3,000 NOK/kWh</td>
+                        <td>10 kWh</td>
+                        <td>+38,806 NOK</td>
+                        <td>22%</td>
+                        <td>3.5 år</td>
+                        <td><span style="color: orange;">⚠️ Vurder med subsidier</span></td>
+                    </tr>
+                    <tr>
+                        <td>5,000 NOK/kWh</td>
+                        <td>N/A</td>
+                        <td>-132,758 NOK</td>
+                        <td>Negativ</td>
+                        <td>>15 år</td>
+                        <td><span style="color: red;">❌ Ikke lønnsomt</span></td>
+                    </tr>
+                </table>
+            </div>
+
+            <div id="econ-cashflow" class="tab-content">
+                <div class="chart-container">
+                    <div class="chart-title">Kumulativ kontantstrøm over 15 år</div>
+                    <iframe src="fig8_cashflow.html" width="100%" height="450" frameborder="0"></iframe>
+                </div>
+            </div>
+
+            <div id="econ-drivers" class="tab-content">
+                <div class="chart-container">
+                    <div class="chart-title">Verdidrivere - inntektskilder fra batterisystem</div>
+                    <iframe src="fig9_value_drivers.html" width="100%" height="450" frameborder="0"></iframe>
+                </div>
+
+                <h3>Inntektsstrømmer (15 år, 10 kWh @ 2,500 NOK/kWh)</h3>
+                <table>
+                    <tr>
+                        <th>Inntektskilde</th>
+                        <th>Total verdi</th>
+                        <th>Andel</th>
+                        <th>Årlig gjennomsnitt</th>
+                    </tr>
+                    <tr>
+                        <td>Peak shaving (unngå curtailment)</td>
+                        <td>45,230 NOK</td>
+                        <td>35%</td>
+                        <td>3,015 NOK/år</td>
+                    </tr>
+                    <tr>
+                        <td>Energiarbitrasje</td>
+                        <td>38,450 NOK</td>
+                        <td>30%</td>
+                        <td>2,563 NOK/år</td>
+                    </tr>
+                    <tr>
+                        <td>Egenforbruksoptimering</td>
+                        <td>32,120 NOK</td>
+                        <td>25%</td>
+                        <td>2,141 NOK/år</td>
+                    </tr>
+                    <tr>
+                        <td>Effekttariff-reduksjon</td>
+                        <td>12,540 NOK</td>
+                        <td>10%</td>
+                        <td>836 NOK/år</td>
+                    </tr>
+                </table>
+            </div>
+
+            <div id="econ-sensitivity" class="tab-content">
+                <h3>Sensitivitetsanalyse - påvirkning på NPV</h3>
+                <canvas id="sensitivityChart" width="400" height="200"></canvas>
+
+                <table>
+                    <tr>
+                        <th>Parameter</th>
+                        <th>Basisverdi</th>
+                        <th>-20%</th>
+                        <th>+20%</th>
+                        <th>NPV-påvirkning</th>
+                    </tr>
+                    <tr>
+                        <td>Strømpris</td>
+                        <td>0.80 NOK/kWh</td>
+                        <td>-15,000 NOK</td>
+                        <td>+18,000 NOK</td>
+                        <td><strong>Høy</strong></td>
+                    </tr>
+                    <tr>
+                        <td>Batterikostnad</td>
+                        <td>2,500 NOK/kWh</td>
+                        <td>+12,000 NOK</td>
+                        <td>-12,000 NOK</td>
+                        <td><strong>Høy</strong></td>
+                    </tr>
+                    <tr>
+                        <td>Diskonteringsrente</td>
+                        <td>5%</td>
+                        <td>+8,000 NOK</td>
+                        <td>-7,000 NOK</td>
+                        <td><strong>Middels</strong></td>
+                    </tr>
+                    <tr>
+                        <td>Degradering</td>
+                        <td>2%/år</td>
+                        <td>+3,000 NOK</td>
+                        <td>-3,500 NOK</td>
+                        <td><strong>Lav</strong></td>
+                    </tr>
+                </table>
+            </div>
+        </section>
+
+        <!-- Tariffanalyse -->
+        <section class="section">
+            <h2>📈 Tariff- og nettleieanalyse</h2>
+
+            <div class="chart-container">
+                <div class="chart-title">Effekttariff - progressive trinn</div>
+                <iframe src="fig4_power_tariff.html" width="100%" height="450" frameborder="0"></iframe>
+            </div>
+
+            <h3>Lnett næringstariffer 2024</h3>
+            <table>
+                <tr>
+                    <th>Komponent</th>
+                    <th>Periode</th>
+                    <th>Pris</th>
+                    <th>Enhet</th>
+                </tr>
+                <tr>
+                    <td>Energiledd - høylast</td>
+                    <td>Man-fre 06-22</td>
+                    <td>0.296</td>
+                    <td>NOK/kWh</td>
+                </tr>
+                <tr>
+                    <td>Energiledd - lavlast</td>
+                    <td>Netter/helger</td>
+                    <td>0.176</td>
+                    <td>NOK/kWh</td>
+                </tr>
+                <tr>
+                    <td>Effektledd 0-50 kW</td>
+                    <td>Månedlig</td>
+                    <td>165</td>
+                    <td>NOK/kW/mnd</td>
+                </tr>
+                <tr>
+                    <td>Effektledd 50-100 kW</td>
+                    <td>Månedlig</td>
+                    <td>132</td>
+                    <td>NOK/kW/mnd</td>
+                </tr>
+                <tr>
+                    <td>Effektledd 100-200 kW</td>
+                    <td>Månedlig</td>
+                    <td>99</td>
+                    <td>NOK/kW/mnd</td>
+                </tr>
+            </table>
+        </section>
+
+        <!-- Detaljanalyser -->
+        <section class="section">
+            <h2>🔍 Detaljanalyser</h2>
+
+            <div class="tabs">
+                <button class="tab active" onclick="showTab(event, 'detail-may')">Mai måned</button>
+                <button class="tab" onclick="showTab(event, 'detail-june15')">15. juni</button>
+            </div>
+
+            <div id="detail-may" class="tab-content active">
+                <div class="chart-container">
+                    <div class="chart-title">Mai 2024 - månedsoversikt med batterioptimering</div>
+                    <iframe src="fig5_may_analysis.html" width="100%" height="450" frameborder="0"></iframe>
+                </div>
+            </div>
+
+            <div id="detail-june15" class="tab-content">
+                <div class="chart-container">
+                    <div class="chart-title">15. juni - timeanalyse av batterioperasjon</div>
+                    <iframe src="fig6_june15.html" width="100%" height="450" frameborder="0"></iframe>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tekniske spesifikasjoner -->
+        <section class="section">
+            <h2>⚙️ Tekniske spesifikasjoner</h2>
+
+            <h3>Batterikrav</h3>
+            <table>
+                <tr>
+                    <th>Parameter</th>
+                    <th>Krav</th>
+                    <th>Anbefalt</th>
+                </tr>
+                <tr>
+                    <td>Teknologi</td>
+                    <td>Lithium-ion</td>
+                    <td>LFP (LiFePO4)</td>
+                </tr>
+                <tr>
+                    <td>Sykluser</td>
+                    <td>>5,000</td>
+                    <td>>8,000</td>
+                </tr>
+                <tr>
+                    <td>DoD (Depth of Discharge)</td>
+                    <td>>80%</td>
+                    <td>>90%</td>
+                </tr>
+                <tr>
+                    <td>Round-trip efficiency</td>
+                    <td>>85%</td>
+                    <td>>92%</td>
+                </tr>
+                <tr>
+                    <td>Garanti</td>
+                    <td>10 år</td>
+                    <td>15 år</td>
+                </tr>
+                <tr>
+                    <td>Temperaturområde</td>
+                    <td>-10°C til +40°C</td>
+                    <td>-20°C til +45°C</td>
+                </tr>
+            </table>
+
+            <h3>Integrasjonskrav</h3>
+            <ul>
+                <li>✅ Modbus TCP/IP kommunikasjon for EMS-integrasjon</li>
+                <li>✅ NEK 400:2022 nettilkobling</li>
+                <li>✅ IEC 62619 sikkerhetssertifisering</li>
+                <li>✅ Innendørs installasjon med klimakontroll</li>
+                <li>✅ Branndeteksjon og -slukking</li>
+                <li>✅ Remote monitoring og kontroll</li>
+            </ul>
+        </section>
+
+        <!-- Anbefalinger -->
+        <section class="section">
+            <h2>🎯 Anbefalinger og veien videre</h2>
+
+            <div class="recommendation-box">
+                <h3>✅ Når batterikost < 2,500 NOK/kWh</h3>
+                <ul>
+                    <li>Start med 10-15 kWh system for daglig cycling</li>
+                    <li>Fokuser på peak shaving og effekttariff-reduksjon</li>
+                    <li>Forventet NPV: 60,000-100,000 NOK</li>
+                    <li>Tilbakebetalingstid: 2.5-3.5 år</li>
+                </ul>
+            </div>
+
+            <div class="info-box">
+                <h3>📊 Kvartalsvis oppfølging</h3>
+                <ul>
+                    <li>Overvåk batteripriser - faller typisk 10-15% årlig</li>
+                    <li>Følg med på Enova-støtteordninger</li>
+                    <li>Vurder pilot ved 3,000 NOK/kWh med subsidier</li>
+                    <li>Evaluer nye inntektsmuligheter (frekvensregulering, VPP)</li>
+                </ul>
+            </div>
+
+            <div class="warning-box">
+                <h3>⚠️ Risikofaktorer å overvåke</h3>
+                <ul>
+                    <li>Endringer i nettleiestruktur</li>
+                    <li>Volatilitet i strømpriser</li>
+                    <li>Teknologisk utvikling (alternativ lagring)</li>
+                    <li>Regulatoriske endringer</li>
+                </ul>
+            </div>
+
+            <h3>Handlingsplan</h3>
+            <table>
+                <tr>
+                    <th>Tidspunkt</th>
+                    <th>Handling</th>
+                    <th>Trigger</th>
+                </tr>
+                <tr>
+                    <td>Umiddelbart</td>
+                    <td>Forbered teknisk spesifikasjon</td>
+                    <td>Alltid</td>
+                </tr>
+                <tr>
+                    <td>Q1 2026</td>
+                    <td>Revurder batterikostnader</td>
+                    <td>Kvartalsvis sjekk</td>
+                </tr>
+                <tr>
+                    <td>Ved 3,000 NOK/kWh</td>
+                    <td>Søk Enova-støtte</td>
+                    <td>Hvis subsidier >30%</td>
+                </tr>
+                <tr>
+                    <td>Ved 2,500 NOK/kWh</td>
+                    <td>Igangsett anskaffelse</td>
+                    <td>Automatisk trigger</td>
+                </tr>
+                <tr>
+                    <td>Ved 2,000 NOK/kWh</td>
+                    <td>Utvid til 20-30 kWh</td>
+                    <td>Hvis økonomi tillater</td>
+                </tr>
+            </table>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p><strong>Battery Optimization System v1.0</strong></p>
+            <p>Rapport generert: 24. september 2025</p>
+            <p>Data: PVGIS 5.2 | Lnett tariffer 2024 | Oppdaterte systemparametere (tilt=15°, azimuth=173°)</p>
+            <p>© 2025 Norsk Solkraft AS - Alle rettigheter forbeholdt</p>
+        </footer>
+    </div>
+
+    <script>
+        // Tab functionality
+        function showTab(evt, tabName) {
+            var i, tabcontent, tabs;
+
+            // Hide all tab contents in the same section
+            var section = evt.target.closest('.section');
+            tabcontent = section.getElementsByClassName("tab-content");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].classList.remove('active');
+            }
+
+            // Remove active class from all tabs in the same section
+            tabs = section.getElementsByClassName("tab");
+            for (i = 0; i < tabs.length; i++) {
+                tabs[i].classList.remove('active');
+            }
+
+            // Show the selected tab and mark button as active
+            document.getElementById(tabName).classList.add('active');
+            evt.currentTarget.classList.add('active');
+        }
+
+        // Animate progress bars when they come into view
+        const observeProgress = new IntersectionObserver(entries => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const bar = entry.target.querySelector('.progress-fill');
+                    if (bar) {
+                        const width = bar.style.width;
+                        bar.style.width = '0';
+                        setTimeout(() => {
+                            bar.style.width = width;
+                        }, 100);
+                    }
+                }
+            });
+        });
+
+        document.querySelectorAll('.progress-bar').forEach(bar => {
+            observeProgress.observe(bar);
+        });
+
+        // Animate KPI cards on scroll
+        const observeKPI = new IntersectionObserver(entries => {
+            entries.forEach((entry, index) => {
+                if (entry.isIntersecting) {
+                    setTimeout(() => {
+                        entry.target.style.opacity = '0';
+                        entry.target.style.transform = 'translateY(20px)';
+                        setTimeout(() => {
+                            entry.target.style.transition = 'all 0.5s ease';
+                            entry.target.style.opacity = '1';
+                            entry.target.style.transform = 'translateY(0)';
+                        }, 100);
+                    }, index * 100);
+                }
+            });
+        });
+
+        document.querySelectorAll('.kpi-card').forEach(card => {
+            observeKPI.observe(card);
+        });
+
+        // Simple sensitivity chart using Canvas
+        const canvas = document.getElementById('sensitivityChart');
+        if (canvas) {
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+
+            // Draw tornado chart
+            const factors = [
+                { name: 'Strømpris', low: -15000, high: 18000 },
+                { name: 'Batterikostnad', low: 12000, high: -12000 },
+                { name: 'Diskonteringsrente', low: 8000, high: -7000 },
+                { name: 'Degradering', low: 3000, high: -3500 }
+            ];
+
+            const maxValue = 20000;
+            const barHeight = 30;
+            const barGap = 15;
+            const centerX = width / 2;
+
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.beginPath();
+            ctx.moveTo(centerX, 20);
+            ctx.lineTo(centerX, height - 20);
+            ctx.stroke();
+
+            factors.forEach((factor, i) => {
+                const y = 40 + i * (barHeight + barGap);
+
+                // Draw negative bar
+                ctx.fillStyle = '#f56565';
+                const negWidth = (Math.abs(factor.low) / maxValue) * (width / 2 - 20);
+                ctx.fillRect(centerX - negWidth, y, negWidth, barHeight);
+
+                // Draw positive bar
+                ctx.fillStyle = '#48bb78';
+                const posWidth = (factor.high / maxValue) * (width / 2 - 20);
+                ctx.fillRect(centerX, y, posWidth, barHeight);
+
+                // Draw label
+                ctx.fillStyle = '#2d3748';
+                ctx.font = '12px sans-serif';
+                ctx.fillText(factor.name, 10, y + barHeight/2 + 4);
+            });
+        }
+
+        // Print functionality
+        window.addEventListener('beforeprint', () => {
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.style.display = 'block';
+            });
+        });
+
+        window.addEventListener('afterprint', () => {
+            document.querySelectorAll('.tab-content:not(.active)').forEach(content => {
+                content.style.display = 'none';
+            });
+        });
+    </script>
+</body>
+</html>
