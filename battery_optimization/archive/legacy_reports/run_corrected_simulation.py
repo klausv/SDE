@@ -15,7 +15,7 @@ from pathlib import Path
 
 # Add parent directory to path for imports
 import sys
-sys.path.append('/mnt/c/Users/klaus/klauspython/offgrid2/battery_optimization')
+sys.path.append('/mnt/c/Users/klaus/klauspython/SDE/battery_optimization')
 
 # Import core modules
 from core.pvgis_solar import fetch_pvgis_data

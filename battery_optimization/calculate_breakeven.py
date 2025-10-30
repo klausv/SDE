@@ -1,19 +1,23 @@
 """
-Calculate Break-Even Battery Cost
+Calculate Break-Even Battery Cost (Legacy Wrapper)
 
-Determines the maximum battery cost (NOK/kWh) that results in NPV = 0
-for the heuristic battery strategy.
+This script is maintained for backward compatibility but now uses the
+new reporting framework. For new code, prefer using:
 
-Assumptions:
-- Battery lifetime: 10 years
-- Discount rate: 5%
-- Annual savings from simulation are representative
-- No degradation adjustment (constant annual savings)
-- No residual value at end of life
+    from reports import BreakevenReport
+    report = BreakevenReport(reference, battery, output_dir)
+    report.generate()
+
+This legacy script:
+1. Runs simulations using the old approach
+2. Converts results to new SimulationResult format
+3. Delegates to BreakevenReport for analysis and visualization
+4. Maintains CLI output format for compatibility
 """
 
 import numpy as np
 import pandas as pd
+from pathlib import Path
 
 from core.battery import Battery
 from core.strategies import NoControlStrategy, SimpleRuleStrategy
@@ -22,6 +26,10 @@ from core.economic_cost import calculate_total_cost
 from core.pvgis_solar import PVGISProduction
 from core.price_fetcher import ENTSOEPriceFetcher
 from core.consumption_profiles import ConsumptionProfile
+
+# New reporting system
+from core.reporting import SimulationResult
+from reports import BreakevenReport
 
 
 def calculate_npv(initial_investment: float,
@@ -108,7 +116,9 @@ def calculate_annuity_factor(lifetime_years: int, discount_rate: float) -> float
 
 def main():
     print("\n" + "="*80)
-    print(" BREAK-EVEN BATTERY COST ANALYSIS")
+    print(" BREAK-EVEN BATTERY COST ANALYSIS (Legacy CLI)")
+    print("="*80)
+    print(" NOTE: Using new reporting framework. See reports/BreakevenReport")
     print("="*80)
 
     # Parameters
@@ -209,9 +219,75 @@ def main():
 
     print("  ✓ Simulations complete")
 
-    # Calculate break-even cost
+    # Convert to new SimulationResult format
+    print("\n  Converting to new result format...")
+
+    reference_result = SimulationResult(
+        scenario_name='reference',
+        timestamp=timestamps,
+        production_dc_kw=results_ref['production_dc_kw'].values if 'production_dc_kw' in results_ref else results_ref['production_ac_kw'].values / 0.95,
+        production_ac_kw=results_ref['production_ac_kw'].values,
+        consumption_kw=consumption.values,
+        grid_power_kw=results_ref['grid_power_kw'].values,
+        battery_power_ac_kw=np.zeros(len(timestamps)),
+        battery_soc_kwh=np.zeros(len(timestamps)),
+        curtailment_kw=results_ref['curtailment_kw'].values if 'curtailment_kw' in results_ref else np.zeros(len(timestamps)),
+        spot_price=spot_prices.values,
+        cost_summary=costs_ref,
+        battery_config={},
+        strategy_config={'type': 'NoControl'}
+    )
+
+    battery_result = SimulationResult(
+        scenario_name='heuristic',
+        timestamp=timestamps,
+        production_dc_kw=results_heur['production_dc_kw'].values if 'production_dc_kw' in results_heur else results_heur['production_ac_kw'].values / 0.95,
+        production_ac_kw=results_heur['production_ac_kw'].values,
+        consumption_kw=consumption.values,
+        grid_power_kw=results_heur['grid_power_kw'].values,
+        battery_power_ac_kw=results_heur['battery_power_ac_kw'].values,
+        battery_soc_kwh=results_heur['battery_soc_kwh'].values,
+        curtailment_kw=results_heur['curtailment_kw'].values if 'curtailment_kw' in results_heur else np.zeros(len(timestamps)),
+        spot_price=spot_prices.values,
+        cost_summary=costs_heur,
+        battery_config={
+            'capacity_kwh': battery_capacity_kwh,
+            'power_kw': battery_power_kw,
+            'efficiency': 0.90,
+            'min_soc': 0.1,
+            'max_soc': 0.9
+        },
+        strategy_config={
+            'type': 'SimpleRule',
+            'cheap_price_threshold': 0.3,
+            'expensive_price_threshold': 0.8,
+            'night_hours': (0, 6)
+        }
+    )
+
+    print("  ✓ Results converted")
+
+    # Generate report using new system
+    print("\n  Generating comprehensive report...")
+    output_dir = Path(__file__).parent / 'results'
+
+    report = BreakevenReport(
+        reference=reference_result,
+        battery_scenario=battery_result,
+        output_dir=output_dir,
+        battery_lifetime_years=lifetime_years,
+        discount_rate=discount_rate,
+        market_cost_per_kwh=5000.0
+    )
+
+    report_path = report.generate()
+
+    print(f"\n  ✓ Full report generated: {report_path}")
+    print(f"  ✓ Figures saved to: {output_dir / 'figures' / 'breakeven'}")
+
+    # Calculate break-even cost (for legacy CLI output)
     print("\n" + "="*80)
-    print(" BREAK-EVEN ANALYSIS")
+    print(" BREAK-EVEN ANALYSIS (Quick Summary)")
     print("="*80)
 
     print("\n1. ANNUAL SAVINGS")
@@ -312,12 +388,18 @@ def main():
     print(f"   Current market prices ({market_cost_per_kwh:,.0f} NOK/kWh) would require:")
     print(f"   • {(market_cost_per_kwh/breakeven_cost_per_kwh):.1f}x higher annual savings, OR")
     print(f"   • {(1-breakeven_cost_per_kwh/market_cost_per_kwh)*100:.1f}% battery cost reduction")
-    print()
-    print("   Potential paths to viability:")
-    print("   1. Implement LP optimization for higher savings")
-    print("   2. Wait for battery prices to fall below ~900 NOK/kWh")
-    print("   3. Explore additional revenue streams (grid services, etc.)")
-    print("   4. Increase battery lifetime through proper O&M")
+
+    print("\n" + "="*80)
+    print(" COMPREHENSIVE REPORT AVAILABLE")
+    print("="*80)
+    print(f"\n   📄 Full report: {report_path}")
+    print(f"   📊 Figures: {output_dir / 'figures' / 'breakeven'}")
+    print(f"   📁 Simulations: {output_dir / 'simulations'}")
+    print("\n   The full report includes:")
+    print("   • NPV sensitivity analysis with visualizations")
+    print("   • Break-even cost vs lifetime analysis")
+    print("   • Break-even cost vs discount rate analysis")
+    print("   • Detailed tables and recommendations")
 
     print("\n" + "="*80 + "\n")
 

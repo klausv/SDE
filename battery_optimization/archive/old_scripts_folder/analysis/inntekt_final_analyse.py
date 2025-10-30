@@ -483,7 +483,7 @@ if resultater:
     plt.suptitle('Batterisystem - Inntektsanalyse', fontsize=14, fontweight='bold')
     plt.tight_layout()
 
-    output_file = '/mnt/c/Users/klaus/klauspython/offgrid2/battery_optimization/inntekt_final.png'
+    output_file = '/mnt/c/Users/klaus/klauspython/SDE/battery_optimization/inntekt_final.png'
     plt.savefig(output_file, dpi=150, bbox_inches='tight')
     print(f"\n✅ Figur lagret: {output_file}")
 

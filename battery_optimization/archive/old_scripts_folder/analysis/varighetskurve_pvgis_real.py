@@ -277,7 +277,7 @@ ax2.legend(loc='upper right', fontsize=9)
 plt.tight_layout()
 
 # Lagre figur
-output_file = '/mnt/c/Users/klaus/klauspython/offgrid2/battery_optimization/varighetskurve_pvgis.png'
+output_file = '/mnt/c/Users/klaus/klauspython/SDE/battery_optimization/varighetskurve_pvgis.png'
 plt.savefig(output_file, dpi=150, bbox_inches='tight')
 print(f"\n✅ Varighetskurve lagret: {output_file}")
 
