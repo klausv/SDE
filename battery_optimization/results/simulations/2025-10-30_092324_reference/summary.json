@@ -1,0 +1,20 @@
+{
+  "scenario_name": "reference",
+  "cost_summary": {
+    "total_cost_nok": 425000.0,
+    "energy_cost_nok": 350000.0,
+    "power_cost_nok": 75000.0
+  },
+  "battery_config": {},
+  "strategy_config": {
+    "type": "NoControl"
+  },
+  "simulation_metadata": {
+    "creation_date": "2025-10-30T09:23:24.611592"
+  },
+  "timestamp_range": {
+    "start": "2024-01-01 00:00:00",
+    "end": "2024-12-30 23:00:00",
+    "count": 8760
+  }
+}

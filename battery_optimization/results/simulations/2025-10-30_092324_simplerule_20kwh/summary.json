@@ -1,0 +1,28 @@
+{
+  "scenario_name": "simplerule_20kwh",
+  "cost_summary": {
+    "total_cost_nok": 385000.0,
+    "energy_cost_nok": 320000.0,
+    "power_cost_nok": 65000.0
+  },
+  "battery_config": {
+    "capacity_kwh": 20.0,
+    "power_kw": 10.0,
+    "efficiency": 0.9,
+    "min_soc": 0.1,
+    "max_soc": 0.9
+  },
+  "strategy_config": {
+    "type": "SimpleRule",
+    "cheap_price_threshold": 0.3,
+    "expensive_price_threshold": 0.8
+  },
+  "simulation_metadata": {
+    "creation_date": "2025-10-30T09:23:24.611616"
+  },
+  "timestamp_range": {
+    "start": "2024-01-01 00:00:00",
+    "end": "2024-12-30 23:00:00",
+    "count": 8760
+  }
+}

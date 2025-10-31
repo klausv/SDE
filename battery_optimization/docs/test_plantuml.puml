@@ -1,0 +1,20 @@
+@startuml
+skinparam dpi 150
+skinparam classFontSize 12
+title PlantUML Test Diagram
+
+class Battery {
+  +capacity_kWh: float
+  +charge(power_kW)
+  +discharge(power_kW)
+}
+
+class Inverter {
+  +maxPower_kW: float
+}
+
+Battery "1" -- "1" Inverter : connects
+
+@enduml
+
+

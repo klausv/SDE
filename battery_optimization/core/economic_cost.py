@@ -131,7 +131,7 @@ def calculate_energy_cost(
     Calculate total energy cost (hourly spot + tariff + tax).
 
     Based on Korpås Equation 5 (energy term):
-    C_energy = Σ [(spot + tariff + tax) × import - feed_in × export] × Δt
+    C_energy = Σ [(spot + tariff + tax) × import - (spot + feed_in) × export] × Δt
 
     Args:
         grid_import_power: Power bought from grid (kW), shape (T,)
@@ -168,8 +168,10 @@ def calculate_energy_cost(
         total_price_import = spot_prices[t] + energy_tariff + consumption_tax
         import_costs[t] = grid_import_power[t] * total_price_import * timestep_hours
 
-        # Calculate export revenue (only feed-in tariff, no spot price compensation)
-        export_revenues[t] = grid_export_power[t] * FEED_IN_TARIFF * timestep_hours
+        # Calculate export revenue (spot price + feed-in tariff/plusskunde-støtte)
+        # Norwegian "plusskunde" gets: spot price + grid tariff reduction (~0.04 NOK/kWh)
+        total_price_export = spot_prices[t] + FEED_IN_TARIFF
+        export_revenues[t] = grid_export_power[t] * total_price_export * timestep_hours
 
     # Total energy cost
     total_energy_cost = np.sum(import_costs) - np.sum(export_revenues)
