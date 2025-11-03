@@ -92,10 +92,24 @@ def calculate_reference_case(data, config):
     grid_export = np.minimum(grid_export_uncapped, config.solar.grid_export_limit_kw)
     curtailment = grid_export_uncapped - grid_export
 
-    # Calculate costs
-    # Energy cost
-    import_cost = grid_import * data['spot_price']
-    export_revenue = grid_export * data['spot_price'] * 0.9  # 90% of spot price for export
+    # Calculate costs using IDENTICAL pricing as LP optimization
+    # Create dummy optimizer to get same cost calculation
+    dummy_optimizer = MonthlyLPOptimizer(
+        config,
+        resolution='PT60M',
+        battery_kwh=0,  # No battery for reference case
+        battery_kw=0
+    )
+
+    # Get energy costs using same method as LP
+    c_import, c_export = dummy_optimizer.get_energy_costs(
+        data.index,
+        data['spot_price'].values
+    )
+
+    # Calculate costs with IDENTICAL pricing as LP
+    import_cost = grid_import * c_import
+    export_revenue = grid_export * c_export
     energy_cost = np.sum(import_cost) - np.sum(export_revenue)
 
     # Power tariff (based on monthly peak import)
@@ -345,14 +359,14 @@ def main():
         'breakeven': {
             'lifetime_years': lifetime_years,
             'discount_rate': discount_rate,
-            'annuity_factor': annuity_factor,
-            'pv_savings_nok': pv_savings,
-            'breakeven_cost_per_kwh': breakeven_cost,
-            'breakeven_total_cost': breakeven_cost * battery_kwh,
+            'annuity_factor': float(annuity_factor),
+            'pv_savings_nok': float(pv_savings),
+            'breakeven_cost_per_kwh': float(breakeven_cost),
+            'breakeven_total_cost': float(breakeven_cost * battery_kwh),
             'market_cost_per_kwh': 5000,
             'market_total_cost': 5000 * battery_kwh,
-            'npv_at_market_price': pv_savings - 5000*battery_kwh,
-            'viable': breakeven_cost >= 5000
+            'npv_at_market_price': float(pv_savings - 5000*battery_kwh),
+            'viable': bool(breakeven_cost >= 5000)
         },
         'system_costs': {
             'battery_cell_cost_per_kwh': config.battery.battery_cell_cost_nok_per_kwh,

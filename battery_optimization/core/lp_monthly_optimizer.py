@@ -239,8 +239,9 @@ class MonthlyLPOptimizer:
             # Total import cost
             c_import[t] = spot_prices[t] + energy_tariff + cons_tax
 
-            # Export revenue (feed-in tariff)
-            c_export[t] = 0.04  # Fixed feed-in tariff
+            # Export revenue (spot price + innmatingstariff)
+            # Total export revenue = spot price + 0.04 kr/kWh feed-in tariff
+            c_export[t] = spot_prices[t] + 0.04
 
         return c_import, c_export
 
@@ -399,6 +400,29 @@ class MonthlyLPOptimizer:
             print(f"  Total degradation: {np.sum(DP):.4f}%")
             print(f"  Cyclic degradation: {np.sum(DP_cyc):.4f}%")
             print(f"  Calendar degradation: {self.dp_cal_per_timestep * T:.4f}%")
+
+            # Validate equivalent cycles
+            equivalent_cycles = np.sum(DOD_abs)
+            cycles_per_year = equivalent_cycles * (8760.0 / T)  # Extrapolate to annual
+
+            print(f"  Equivalent cycles (this period): {equivalent_cycles:.1f}")
+            print(f"  Extrapolated annual rate: {cycles_per_year:.0f} cycles/year")
+
+            # Warnings
+            if cycles_per_year > 400:
+                print(f"  ⚠️  WARNING: Very high cycle rate!")
+                print(f"      Expected for peak shaving: 100-200 cycles/year")
+                print(f"      Current rate suggests aggressive arbitrage trading")
+
+            # Compare cyclic vs calendar
+            cyclic_monthly = np.sum(DP_cyc)
+            calendar_monthly = self.dp_cal_per_timestep * T
+
+            if cyclic_monthly < calendar_monthly * 0.5:
+                print(f"  ⚠️  Battery under-utilized (calendar degradation dominates)")
+            elif cyclic_monthly > calendar_monthly * 5:
+                print(f"  ⚠️  Battery over-utilized (cyclic degradation dominates)")
+
         print(f"  Peak power: {P_peak:.2f} kW")
         print(f"  Final SOC: {E_battery[-1]/self.E_nom*100:.1f}%")
 
