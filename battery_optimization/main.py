@@ -135,6 +135,9 @@ Key Features:
                            help="Prefix for output files")
     sim_parser.add_argument("--base-battery", nargs=2, type=int, metavar=("KWH", "KW"),
                            help="Base case battery configuration")
+    sim_parser.add_argument("--resolution", type=str, default='PT60M',
+                           choices=['PT60M', 'PT15M'],
+                           help="Time resolution: PT60M (hourly, default) or PT15M (15-minute)")
 
     # Optimize command
     opt_parser = subparsers.add_parser("optimize", help="Find optimal battery configuration")

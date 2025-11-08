@@ -1,0 +1,45 @@
+{
+  "battery_configuration": {
+    "capacity_kwh": 30,
+    "power_kw": 15,
+    "c_rate": 0.5
+  },
+  "market_cost_scenario": {
+    "cost_per_kwh": 5000,
+    "npv": -16519.029551197636,
+    "irr": 0.019065746968930458,
+    "payback": 11.664199776883315,
+    "annual_savings": 12859.862045339569,
+    "curtailment_value": 8383.924765780273,
+    "arbitrage_value": 4475.937279559295,
+    "power_savings": 0,
+    "investment": 150000
+  },
+  "target_cost_scenario": {
+    "cost_per_kwh": 2500,
+    "npv": 58480.97044880235,
+    "irr": 0.10479816060452758,
+    "payback": 5.8320998884416575,
+    "annual_savings": 12859.862045339569,
+    "curtailment_value": 8383.924765780273,
+    "arbitrage_value": 4475.937279559295,
+    "power_savings": 0,
+    "investment": 75000
+  },
+  "production_statistics": {
+    "total_dc_production_kwh": 130767.85949999999,
+    "total_ac_production_kwh": 127485.09122999999,
+    "total_consumption_kwh": 63202.91037261852,
+    "inverter_clipping_kwh": 667.4110799999999,
+    "grid_curtailment_kwh": 9863.440900917969
+  },
+  "battery_utilization": {
+    "total_charge_kwh": 4947.549433178215,
+    "total_discharge_kwh": 4467.794489860393,
+    "full_cycles_per_year": 164.91831443927381,
+    "max_soc_kwh": 30.0,
+    "min_soc_kwh": 0.0,
+    "avg_soc_kwh": 13.008170881576172
+  },
+  "timestamp": "2025-10-31T08:21:46.269112"
+}

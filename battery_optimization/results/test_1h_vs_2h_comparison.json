@@ -1,0 +1,25 @@
+{
+  "battery_kwh": 80,
+  "battery_kw": 50,
+  "1h_resolution": {
+    "reference_cost": 74918.5228450002,
+    "battery_cost": 100797.94445493072,
+    "annual_savings": -25879.42160993052,
+    "npv_savings": -268619.5465369798,
+    "breakeven_cost_per_kwh": -3357.7443317122475,
+    "elapsed_time": 86.1982581615448
+  },
+  "2h_aggregation": {
+    "reference_cost": 74160.35028485343,
+    "battery_cost": 144944.18219171528,
+    "annual_savings": -70783.83190686186,
+    "npv_savings": -734711.9698252825,
+    "breakeven_cost_per_kwh": -9183.89962281603,
+    "elapsed_time": 26.51220726966858
+  },
+  "comparison": {
+    "breakeven_error_pct": -173.51396400490074,
+    "savings_error_pct": -173.5139640049007,
+    "speedup": 3.251266757414059
+  }
+}

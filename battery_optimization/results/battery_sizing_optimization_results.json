@@ -1,0 +1,42 @@
+{
+  "optimization_metadata": {
+    "timestamp": "2025-11-08T05:46:38.066705",
+    "year": 2024,
+    "resolution": "PT60M",
+    "discount_rate": 0.05,
+    "project_years": 15,
+    "total_evaluations": 65
+  },
+  "grid_search": {
+    "E_range": [
+      10.0,
+      200.0
+    ],
+    "P_range": [
+      10.0,
+      100.0
+    ],
+    "grid_size": [
+      6,
+      6
+    ],
+    "best_E_nom_kwh": 48.0,
+    "best_P_max_kw": 46.0,
+    "best_npv_nok": 4547.980000884243
+  },
+  "powell_refinement": {
+    "optimal_E_nom_kwh": 29.103147643187288,
+    "optimal_P_max_kw": 99.99995151488129,
+    "optimal_npv_nok": 11362.633398431077,
+    "success": true,
+    "iterations": 44
+  },
+  "optimal_solution": {
+    "battery_capacity_kwh": 29.103147643187288,
+    "battery_power_kw": 99.99995151488129,
+    "npv_nok": 11362.633398431077,
+    "npv_million_nok": 0.011362633398431077,
+    "initial_investment_nok": 130287.01290229398,
+    "c_rate": 3.436052785111377
+  }
+}

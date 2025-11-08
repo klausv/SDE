@@ -31,7 +31,13 @@ class ENTSOEPriceFetcher:
     - EUR/MWh → NOK/kWh conversion
     - UTC → Europe/Oslo timezone conversion
     - Fallback to simulated data if API fails
+    - Multi-resolution support (hourly and 15-minute intervals)
     """
+
+    # Resolution constants
+    RESOLUTION_HOURLY = 'PT60M'
+    RESOLUTION_15MIN = 'PT15M'
+    VALID_RESOLUTIONS = [RESOLUTION_HOURLY, RESOLUTION_15MIN]
 
     # ENTSO-E domain codes for Norwegian bidding zones
     DOMAIN_CODES = {
@@ -52,7 +58,8 @@ class ENTSOEPriceFetcher:
         self,
         api_key: Optional[str] = None,
         cache_dir: Optional[Path] = None,
-        eur_nok_rate: float = DEFAULT_EUR_NOK_RATE
+        eur_nok_rate: float = DEFAULT_EUR_NOK_RATE,
+        resolution: str = RESOLUTION_HOURLY
     ):
         """
         Initialize price fetcher
@@ -61,18 +68,29 @@ class ENTSOEPriceFetcher:
             api_key: ENTSO-E API key (if None, reads from ENTSOE_API_KEY env var)
             cache_dir: Directory for caching data (default: data/spot_prices)
             eur_nok_rate: EUR/NOK exchange rate for conversion
+            resolution: Time resolution for prices ('PT60M' hourly or 'PT15M' 15-minute)
+
+        Raises:
+            ValueError: If resolution is not valid
         """
+        if resolution not in self.VALID_RESOLUTIONS:
+            raise ValueError(
+                f"Resolution must be one of {self.VALID_RESOLUTIONS}, got '{resolution}'"
+            )
+
         self.api_key = api_key or os.getenv('ENTSOE_API_KEY')
         self.cache_dir = cache_dir or Path('data/spot_prices')
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.metadata_file = self.cache_dir / 'cache_metadata.json'
         self.eur_nok_rate = eur_nok_rate
+        self.resolution = resolution
         self.api_url = "https://web-api.tp.entsoe.eu/api"
 
     def fetch_prices(
         self,
         year: int,
         area: str = 'NO2',
+        resolution: Optional[str] = None,
         refresh: bool = False,
         use_fallback: bool = True
     ) -> pd.Series:
@@ -82,36 +100,54 @@ class ENTSOEPriceFetcher:
         Args:
             year: Year to fetch prices for (e.g., 2023)
             area: Bidding zone code (NO1-NO5)
+            resolution: Time resolution ('PT60M' hourly or 'PT15M' 15-minute).
+                       If None, uses resolution from __init__ (default PT60M)
             refresh: If True, fetch fresh data even if cache exists
             use_fallback: If True, generate simulated data if API fails
 
         Returns:
-            pandas Series with hourly prices (NOK/kWh) indexed by timestamp (Europe/Oslo)
+            pandas Series with prices (NOK/kWh) indexed by timestamp (Europe/Oslo)
+            Resolution: hourly (8760 points) or 15-minute (35040 points) per year
 
         Raises:
-            ValueError: If API key missing and fallback disabled
+            ValueError: If API key missing and fallback disabled, or invalid resolution
             RuntimeError: If API fails and fallback disabled
+
+        Note:
+            15-minute resolution for day-ahead prices available from Sept 30, 2025
+            (Nord Pool transition to 15-minute MTU for SDAC)
         """
-        cache_file = self.cache_dir / f"{area}_{year}_real.csv"
+        # Use provided resolution or fall back to instance resolution
+        resolution = resolution or self.resolution
+
+        # Validate resolution
+        if resolution not in self.VALID_RESOLUTIONS:
+            raise ValueError(
+                f"Resolution must be one of {self.VALID_RESOLUTIONS}, got '{resolution}'"
+            )
+
+        # Update cache file naming to include resolution
+        resolution_str = resolution.replace('PT', '').replace('M', 'min').lower()
+        cache_file = self.cache_dir / f"{area}_{year}_{resolution_str}_real.csv"
 
         # Show cached data info
         self._show_cached_data_info()
 
         # Check cache (unless refresh requested)
         if cache_file.exists() and not refresh:
-            return self._load_from_cache(cache_file, area, year)
+            return self._load_from_cache(cache_file, area, year, resolution)
 
         # Fetch fresh data
         if refresh:
-            print(f"🔄 Refreshing prices for {area} {year}...")
+            print(f"🔄 Refreshing prices for {area} {year} ({resolution})...")
         else:
-            print(f"📡 No cache found for {area} {year}, fetching from API...")
+            print(f"📡 No cache found for {area} {year} ({resolution}), fetching from API...")
 
         # Validate API key
         if not self.api_key:
             if use_fallback:
                 print("⚠️ ENTSOE_API_KEY not set - using simulated data")
-                return self._generate_fallback_prices(year, area)
+                return self._generate_fallback_prices(year, area, resolution)
             else:
                 raise ValueError(
                     "ENTSOE_API_KEY required for real data fetching. "
@@ -120,9 +156,9 @@ class ENTSOEPriceFetcher:
 
         # Fetch from API
         try:
-            prices = self._fetch_from_api(year, area)
-            self._save_to_cache(prices, cache_file, area, year, source='ENTSO-E API')
-            self._print_statistics(prices, year)
+            prices = self._fetch_from_api(year, area, resolution)
+            self._save_to_cache(prices, cache_file, area, year, resolution, source='ENTSO-E API')
+            self._print_statistics(prices, year, resolution)
             return prices
 
         except Exception as e:
@@ -130,18 +166,31 @@ class ENTSOEPriceFetcher:
 
             if use_fallback:
                 print("📊 Falling back to simulated data...")
-                return self._generate_fallback_prices(year, area)
+                return self._generate_fallback_prices(year, area, resolution)
             else:
                 raise RuntimeError(f"API fetch failed and fallback disabled: {e}")
 
-    def _fetch_from_api(self, year: int, area: str) -> pd.Series:
-        """Fetch prices from ENTSO-E API with month-by-month requests"""
+    def _fetch_from_api(self, year: int, area: str, resolution: str) -> pd.Series:
+        """
+        Fetch prices from ENTSO-E API with month-by-month requests
 
+        Args:
+            year: Year to fetch
+            area: Bidding zone (NO1-NO5)
+            resolution: Time resolution (PT60M or PT15M)
+
+        Returns:
+            Series with prices at specified resolution
+
+        Note:
+            ENTSO-E API doesn't always respect requested resolution in request params.
+            Resolution is detected from XML response and used for parsing.
+        """
         domain = self.DOMAIN_CODES.get(area)
         if not domain:
             raise ValueError(f"Unknown area code: {area}. Valid: {list(self.DOMAIN_CODES.keys())}")
 
-        print(f"🌐 Fetching {area} prices for {year} from ENTSO-E API...")
+        print(f"🌐 Fetching {area} prices for {year} ({resolution}) from ENTSO-E API...")
 
         all_prices = []
 
@@ -170,8 +219,8 @@ class ENTSOEPriceFetcher:
                 print(f"  ⚠️ Error {response.status_code}: {response.text[:200]}")
                 continue
 
-            # Parse XML response
-            month_prices = self._parse_xml_response(response.content)
+            # Parse XML response (will detect actual resolution from XML)
+            month_prices = self._parse_xml_response(response.content, resolution)
             all_prices.extend(month_prices)
 
         if not all_prices:
@@ -185,16 +234,31 @@ class ENTSOEPriceFetcher:
         # Remove duplicates (keep first occurrence)
         df = df[~df.index.duplicated(keep='first')]
 
-        # Resample to ensure hourly data and interpolate small gaps
-        df = df.resample('h').mean().interpolate(limit=3)
-
-        print(f"✅ Fetched {len(df)} hours of data")
+        # Resample to ensure consistent resolution and interpolate small gaps
+        if resolution == self.RESOLUTION_15MIN:
+            df = df.resample('15min').mean().interpolate(limit=3)
+            print(f"✅ Fetched {len(df)} 15-minute intervals")
+        else:
+            df = df.resample('h').mean().interpolate(limit=3)
+            print(f"✅ Fetched {len(df)} hours of data")
 
         return df['price_nok']
 
-    def _parse_xml_response(self, xml_content: bytes) -> list:
-        """Parse ENTSO-E XML response and extract prices"""
+    def _parse_xml_response(self, xml_content: bytes, expected_resolution: str) -> list:
+        """
+        Parse ENTSO-E XML response and extract prices
 
+        Args:
+            xml_content: XML response from ENTSO-E API
+            expected_resolution: Expected resolution (PT60M or PT15M)
+
+        Returns:
+            List of dicts with timestamp and price
+
+        Note:
+            Detects actual resolution from XML and warns if different from expected.
+            Calculates timestamps based on detected resolution.
+        """
         root = ET.fromstring(xml_content)
         prices = []
 
@@ -203,7 +267,23 @@ class ENTSOEPriceFetcher:
             if period is None:
                 continue
 
-            # Get start time and resolution
+            # Detect resolution from XML
+            resolution_elem = period.find('ns:resolution', self.XML_NAMESPACE)
+            actual_resolution = resolution_elem.text if resolution_elem is not None else 'PT60M'
+
+            # Warn if resolution mismatch
+            if actual_resolution != expected_resolution:
+                print(f"  ℹ️ API returned {actual_resolution}, expected {expected_resolution}")
+
+            # Determine time delta based on detected resolution
+            if 'PT15M' in actual_resolution:
+                time_delta = pd.Timedelta(minutes=15)
+            elif 'PT30M' in actual_resolution:
+                time_delta = pd.Timedelta(minutes=30)
+            else:  # PT60M or default
+                time_delta = pd.Timedelta(hours=1)
+
+            # Get start time
             start_elem = period.find('ns:timeInterval/ns:start', self.XML_NAMESPACE)
             if start_elem is None:
                 continue
@@ -225,7 +305,7 @@ class ENTSOEPriceFetcher:
                 price_eur_mwh = float(price_elem.text)
 
                 # Calculate timestamp (position is 1-indexed)
-                timestamp = start_time + pd.Timedelta(hours=position - 1)
+                timestamp = start_time + (position - 1) * time_delta
 
                 # Convert EUR/MWh to NOK/kWh
                 price_nok_kwh = price_eur_mwh * self.eur_nok_rate / 1000
@@ -237,23 +317,40 @@ class ENTSOEPriceFetcher:
 
         return prices
 
-    def _generate_fallback_prices(self, year: int, area: str) -> pd.Series:
+    def _generate_fallback_prices(self, year: int, area: str, resolution: str) -> pd.Series:
         """
         Generate realistic simulated prices based on NO2 patterns
 
-        Only used when API is unavailable or API key not set.
-        For production use, always use real ENTSO-E data.
+        Args:
+            year: Year to generate data for
+            area: Bidding zone
+            resolution: Time resolution (PT60M or PT15M)
+
+        Returns:
+            Series with simulated prices at specified resolution
+
+        Note:
+            Only used when API is unavailable or API key not set.
+            For production use, always use real ENTSO-E data.
         """
-        print(f"📊 Generating simulated prices for {area} {year}...")
+        print(f"📊 Generating simulated prices for {area} {year} ({resolution})...")
         print("⚠️ WARNING: Using simulated data - not real market prices!")
 
-        # Create hourly timestamp index with correct timezone
-        times = pd.date_range(
-            f'{year}-01-01',
-            f'{year}-12-31 23:00',
-            freq='h',
-            tz='Europe/Oslo'
-        )
+        # Create timestamp index at specified resolution
+        if resolution == self.RESOLUTION_15MIN:
+            times = pd.date_range(
+                f'{year}-01-01',
+                f'{year}-12-31 23:45',  # Last 15-min of year
+                freq='15min',
+                tz='Europe/Oslo'
+            )
+        else:
+            times = pd.date_range(
+                f'{year}-01-01',
+                f'{year}-12-31 23:00',
+                freq='h',
+                tz='Europe/Oslo'
+            )
 
         prices = []
         for ts in times:
@@ -306,22 +403,34 @@ class ENTSOEPriceFetcher:
 
         series = pd.Series(prices, index=times, name='price_nok')
 
-        # Save to cache
-        cache_file = self.cache_dir / f"{area}_{year}_real.csv"
-        self._save_to_cache(series, cache_file, area, year, source='Simulated')
+        # Save to cache with resolution in filename
+        resolution_str = resolution.replace('PT', '').replace('M', 'min').lower()
+        cache_file = self.cache_dir / f"{area}_{year}_{resolution_str}_real.csv"
+        self._save_to_cache(series, cache_file, area, year, resolution, source='Simulated')
 
-        self._print_statistics(series, year)
+        self._print_statistics(series, year, resolution)
 
         return series
 
-    def _load_from_cache(self, cache_file: Path, area: str, year: int) -> pd.Series:
-        """Load prices from cache file"""
+    def _load_from_cache(self, cache_file: Path, area: str, year: int, resolution: str) -> pd.Series:
+        """
+        Load prices from cache file
 
-        metadata = self._get_cache_metadata(area, year)
+        Args:
+            cache_file: Path to cache file
+            area: Bidding zone
+            year: Year
+            resolution: Expected resolution
+
+        Returns:
+            Series with cached prices
+        """
+        metadata = self._get_cache_metadata(area, year, resolution)
 
         print(f"📁 Loading cached prices: {cache_file.name}")
         if metadata:
             print(f"   • Source: {metadata.get('source', 'Unknown')}")
+            print(f"   • Resolution: {metadata.get('resolution', 'Unknown')}")
             print(f"   • Fetched: {metadata.get('fetched_date', 'Unknown')}")
 
         data = pd.read_csv(cache_file, index_col=0, parse_dates=True)
@@ -357,10 +466,20 @@ class ENTSOEPriceFetcher:
         cache_file: Path,
         area: str,
         year: int,
+        resolution: str,
         source: str
     ):
-        """Save prices to cache with metadata"""
+        """
+        Save prices to cache with metadata
 
+        Args:
+            prices: Price series to save
+            cache_file: Cache file path
+            area: Bidding zone
+            year: Year
+            resolution: Time resolution
+            source: Data source (e.g., 'ENTSO-E API', 'Simulated')
+        """
         # Convert to DataFrame and save with index name for proper loading
         df = prices.to_frame()
         df.index.name = 'timestamp'  # Ensure index has name
@@ -370,16 +489,26 @@ class ENTSOEPriceFetcher:
         self._update_cache_metadata(
             area,
             year,
+            resolution,
             source,
-            note=f"Fetched via unified price fetcher"
+            note=f"Fetched via unified price fetcher ({resolution})"
         )
 
         print(f"💾 Saved to cache: {cache_file.name}")
 
-    def _print_statistics(self, prices: pd.Series, year: int):
-        """Print price statistics"""
+    def _print_statistics(self, prices: pd.Series, year: int, resolution: str):
+        """
+        Print price statistics
 
-        print(f"\n📊 Price Statistics {year}:")
+        Args:
+            prices: Price series
+            year: Year
+            resolution: Time resolution
+        """
+        time_unit = "hours" if resolution == self.RESOLUTION_HOURLY else "15-min intervals"
+
+        print(f"\n📊 Price Statistics {year} ({resolution}):")
+        print(f"   • Data points: {len(prices)} {time_unit}")
         print(f"   • Mean:   {prices.mean():.3f} NOK/kWh")
         print(f"   • Median: {prices.median():.3f} NOK/kWh")
         print(f"   • Min:    {prices.min():.3f} NOK/kWh")
@@ -389,7 +518,36 @@ class ENTSOEPriceFetcher:
         # Check for negative prices
         negative = prices[prices < 0]
         if len(negative) > 0:
-            print(f"   • Negative prices: {len(negative)} hours ({len(negative)/len(prices)*100:.1f}%)")
+            print(f"   • Negative prices: {len(negative)} {time_unit} ({len(negative)/len(prices)*100:.1f}%)")
+
+        # Validate expected data points
+        self._validate_data_points(prices, year, resolution)
+
+    def _validate_data_points(self, prices: pd.Series, year: int, resolution: str) -> bool:
+        """
+        Validate expected number of data points for given resolution
+
+        Args:
+            prices: Price series
+            year: Year
+            resolution: Time resolution
+
+        Returns:
+            True if valid, False otherwise (with warning printed)
+        """
+        if resolution == self.RESOLUTION_15MIN:
+            expected = 35040  # 365 × 24 × 4
+        else:
+            expected = 8760  # 365 × 24
+
+        actual = len(prices)
+        tolerance = 50  # Allow for DST transitions and minor gaps
+
+        if abs(actual - expected) > tolerance:
+            print(f"   ⚠️ Expected ~{expected} points, got {actual} (diff: {actual - expected})")
+            return False
+
+        return True
 
     def _show_cached_data_info(self):
         """Display information about cached data files"""
@@ -435,20 +593,46 @@ class ENTSOEPriceFetcher:
         with open(self.metadata_file, 'w', encoding='utf-8') as f:
             json.dump(metadata, f, indent=2, ensure_ascii=False, default=str)
 
-    def _get_cache_metadata(self, area: str, year: int) -> dict:
-        """Get metadata for specific cache file"""
+    def _get_cache_metadata(self, area: str, year: int, resolution: str) -> dict:
+        """
+        Get metadata for specific cache file
+
+        Args:
+            area: Bidding zone
+            year: Year
+            resolution: Time resolution
+
+        Returns:
+            Metadata dict for cache file
+        """
         metadata = self._load_metadata()
-        key = f"{area}_{year}"
+        resolution_str = resolution.replace('PT', '').replace('M', 'min').lower()
+        key = f"{area}_{year}_{resolution_str}"
         return metadata.get(key, {})
 
-    def _update_cache_metadata(self, area: str, year: int, source: str, note: str = None):
-        """Update metadata for cache file"""
+    def _update_cache_metadata(self, area: str, year: int, resolution: str, source: str, note: str = None):
+        """
+        Update metadata for cache file
+
+        Args:
+            area: Bidding zone
+            year: Year
+            resolution: Time resolution
+            source: Data source
+            note: Optional note
+        """
         metadata = self._load_metadata()
-        key = f"{area}_{year}"
+        resolution_str = resolution.replace('PT', '').replace('M', 'min').lower()
+        key = f"{area}_{year}_{resolution_str}"
+
+        # Calculate expected data points
+        expected_points = 35040 if resolution == self.RESOLUTION_15MIN else 8760
 
         metadata[key] = {
             'area': area,
             'year': year,
+            'resolution': resolution,
+            'expected_points': expected_points,
             'source': source,
             'fetched_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'note': note,
@@ -462,6 +646,7 @@ class ENTSOEPriceFetcher:
 def fetch_prices(
     year: int,
     area: str = 'NO2',
+    resolution: str = 'PT60M',
     api_key: Optional[str] = None,
     refresh: bool = False
 ) -> pd.Series:
@@ -471,14 +656,22 @@ def fetch_prices(
     Args:
         year: Year to fetch (e.g., 2023)
         area: Bidding zone (NO1-NO5)
+        resolution: Time resolution ('PT60M' hourly or 'PT15M' 15-minute), default hourly
         api_key: ENTSO-E API key (optional, reads from env)
         refresh: Force fresh fetch even if cached
 
     Returns:
-        Series with hourly prices in NOK/kWh
+        Series with prices in NOK/kWh at specified resolution
+
+    Example:
+        # Hourly prices (default)
+        prices = fetch_prices(2024, 'NO2')
+
+        # 15-minute prices (available from Sept 30, 2025)
+        prices_15min = fetch_prices(2025, 'NO2', resolution='PT15M')
     """
-    fetcher = ENTSOEPriceFetcher(api_key=api_key)
-    return fetcher.fetch_prices(year, area, refresh=refresh)
+    fetcher = ENTSOEPriceFetcher(api_key=api_key, resolution=resolution)
+    return fetcher.fetch_prices(year, area, resolution=resolution, refresh=refresh)
 
 
 if __name__ == "__main__":

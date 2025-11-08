@@ -129,62 +129,129 @@ def generate_realistic_consumption_profile(index):
 
     return pd.Series(consumption, index=hours, name='consumption_kw')
 
-def get_electricity_prices(index):
-    """Generate electricity price profile based on actual patterns"""
-    hours = index  # Use the same index as production data
+def get_electricity_prices(index, resolution='PT60M'):
+    """
+    Fetch electricity prices at specified resolution.
+
+    Args:
+        index: DatetimeIndex for the year
+        resolution: 'PT60M' (hourly) or 'PT15M' (15-minute)
+
+    Returns:
+        Series with spot prices + tariffs at target resolution
+    """
+    year = index[0].year
+
+    # Fetch spot prices at target resolution using real price fetcher
+    from core.price_fetcher import fetch_prices
+
+    print(f"Fetching {resolution} spot prices for {year}...")
+    spot_prices = fetch_prices(year, 'NO2', resolution=resolution)
+
+    # Align with the provided index (handle potential length mismatches)
+    if len(spot_prices) != len(index):
+        print(f"  Warning: Price data length {len(spot_prices)} != index length {len(index)}")
+        print(f"  Trimming/extending to match index")
+        if len(spot_prices) > len(index):
+            spot_prices = spot_prices[:len(index)]
+        else:
+            # Extend by repeating last value
+            extension = pd.Series(
+                [spot_prices.iloc[-1]] * (len(index) - len(spot_prices)),
+                index=index[len(spot_prices):]
+            )
+            spot_prices = pd.concat([spot_prices, extension])
+
+    # Reindex to match exact timestamps
+    spot_prices.index = index
+
+    # Add grid tariff and other charges
     prices = []
-
-    for hour in hours:
-        base_price = ECONOMIC_PARAMS['spot_price_avg_2024']
+    for hour in index:
         hour_of_day = hour.hour
-        month = hour.month
 
-        # Seasonal variation
-        if month in [12, 1, 2]:  # Winter
-            seasonal = 1.3
-        elif month in [6, 7, 8]:  # Summer
-            seasonal = 0.7
-        else:
-            seasonal = 1.0
-
-        # Daily variation
-        if 7 <= hour_of_day <= 9:  # Morning peak
-            daily = 1.5
-        elif 17 <= hour_of_day <= 20:  # Evening peak
-            daily = 1.6
-        elif 23 <= hour_of_day or hour_of_day <= 5:  # Night
-            daily = 0.5
-        else:
-            daily = 1.0
-
-        # Add volatility
-        random_factor = 0.7 + 0.6 * np.random.random()
-
-        spot_price = base_price * seasonal * daily * random_factor
-
-        # Add grid tariff
+        # Grid tariff (peak/off-peak)
         is_peak = hour.weekday() < 5 and 6 <= hour_of_day <= 22
         grid_tariff = ECONOMIC_PARAMS['grid_tariff_peak'] if is_peak else ECONOMIC_PARAMS['grid_tariff_offpeak']
 
-        total_price = spot_price + grid_tariff + ECONOMIC_PARAMS['energy_tariff'] + ECONOMIC_PARAMS['consumption_tax']
+        # Total price = spot + grid tariff + energy tariff + consumption tax
+        total_price = spot_prices[hour] + grid_tariff + ECONOMIC_PARAMS['energy_tariff'] + ECONOMIC_PARAMS['consumption_tax']
         prices.append(total_price)
 
-    return pd.Series(prices, index=hours, name='electricity_price')
+    return pd.Series(prices, index=index, name='electricity_price')
 
-def simulate_battery_operation(production_dc, production_ac, consumption, prices, battery_kwh, battery_kw):
-    """Simulate battery operation for a full year"""
-    hours = len(production_ac)
-    soc = np.zeros(hours)
-    battery_charge = np.zeros(hours)
-    battery_discharge = np.zeros(hours)
-    grid_curtailment = np.zeros(hours)
-    grid_import = np.zeros(hours)
-    grid_export = np.zeros(hours)
+def prepare_data_for_resolution(production_dc, production_ac, consumption,
+                                prices, target_resolution):
+    """
+    Prepare data for optimization at target resolution.
+
+    Args:
+        production_dc: DC production data (hourly from PVGIS)
+        production_ac: AC production data (hourly from PVGIS)
+        consumption: Consumption data (hourly profile)
+        prices: Electricity prices (can be hourly or 15-min)
+        target_resolution: 'PT60M' or 'PT15M'
+
+    Returns:
+        Tuple of (production_dc, production_ac, consumption, prices, timestamps)
+        all at target resolution
+    """
+    if target_resolution == 'PT60M':
+        # Already at hourly resolution
+        return production_dc, production_ac, consumption, prices, production_dc.index
+
+    # Upsample to 15-minute resolution
+    from core.time_aggregation import upsample_hourly_to_15min
+
+    print(f"Upsampling production and consumption data to 15-minute resolution...")
+
+    # Upsample production and consumption (repeat each hourly value 4 times)
+    production_dc_15min = upsample_hourly_to_15min(production_dc, production_dc.index)
+    production_ac_15min = upsample_hourly_to_15min(production_ac, production_ac.index)
+    consumption_15min = upsample_hourly_to_15min(consumption, consumption.index)
+
+    # Prices should already be at 15-minute resolution from get_electricity_prices()
+    # Just verify they match the upsampled production index
+    timestamps_15min = production_dc_15min.index
+
+    if len(prices) != len(timestamps_15min):
+        raise ValueError(
+            f"Price data length mismatch: {len(prices)} prices vs {len(timestamps_15min)} timestamps. "
+            f"Ensure get_electricity_prices() is called with correct resolution index."
+        )
+
+    # Align prices with production timestamps
+    prices_15min = pd.Series(prices.values, index=timestamps_15min)
+
+    print(f"  Upsampled: {len(production_dc)} hours → {len(production_dc_15min)} 15-min intervals")
+
+    return production_dc_15min, production_ac_15min, consumption_15min, prices_15min, timestamps_15min
+
+def simulate_battery_operation(production_dc, production_ac, consumption, prices, battery_kwh, battery_kw, time_interval_hours=1.0):
+    """
+    Simulate battery operation for a full year.
+
+    Args:
+        production_dc: DC production [kW]
+        production_ac: AC production [kW]
+        consumption: Consumption [kW]
+        prices: Electricity prices [NOK/kWh]
+        battery_kwh: Battery capacity [kWh]
+        battery_kw: Battery power [kW]
+        time_interval_hours: Duration of each time step in hours (1.0 for hourly, 0.25 for 15-min)
+    """
+    intervals = len(production_ac)
+    soc = np.zeros(intervals)
+    battery_charge = np.zeros(intervals)
+    battery_discharge = np.zeros(intervals)
+    grid_curtailment = np.zeros(intervals)
+    grid_import = np.zeros(intervals)
+    grid_export = np.zeros(intervals)
 
     soc[0] = battery_kwh * 0.5  # Start at 50% charge
     efficiency = SYSTEM_CONFIG['battery_efficiency']
 
-    for i in range(1, hours):
+    for i in range(1, intervals):
         # Net production using AC values (after inverter)
         net_production = production_ac.iloc[i] - consumption.iloc[i]
 
@@ -194,46 +261,57 @@ def simulate_battery_operation(production_dc, production_ac, consumption, prices
                 # Need to curtail or store
                 excess = production_ac.iloc[i] - SYSTEM_CONFIG['grid_limit_kw']
 
-                # Try to charge battery
-                charge_available = min(excess, battery_kw)
-                charge_possible = min(charge_available, (battery_kwh - soc[i-1]) / efficiency)
+                # Try to charge battery - convert power to energy using time interval
+                charge_power_kw = min(excess, battery_kw)  # Power limit
+                charge_energy_kwh = charge_power_kw * time_interval_hours  # Energy available in this interval
+                charge_possible_kwh = min(charge_energy_kwh, (battery_kwh - soc[i-1]) / efficiency)
 
-                battery_charge[i] = charge_possible
-                soc[i] = soc[i-1] + charge_possible * efficiency
-                grid_curtailment[i] = excess - charge_possible
+                battery_charge[i] = charge_possible_kwh
+                soc[i] = soc[i-1] + charge_possible_kwh * efficiency
 
-                # Export remaining to grid (up to limit)
-                export_available = production_ac.iloc[i] - consumption.iloc[i] - grid_curtailment[i] - battery_charge[i]
-                grid_export[i] = min(export_available, SYSTEM_CONFIG['grid_limit_kw'])
+                # Curtailment is excess power that couldn't be stored
+                charge_actual_power = charge_possible_kwh / time_interval_hours
+                grid_curtailment[i] = (excess - charge_actual_power) * time_interval_hours  # Convert to energy
+
+                # Export remaining to grid (up to limit) - energy for this interval
+                export_power = production_ac.iloc[i] - consumption.iloc[i] - (excess - charge_actual_power)
+                grid_export[i] = min(export_power, SYSTEM_CONFIG['grid_limit_kw']) * time_interval_hours
             else:
                 # No curtailment needed - opportunistic charging for arbitrage
-                if prices.iloc[i] < prices.iloc[i:min(i+6, hours)].mean():  # Price is low
-                    charge_available = min(net_production, battery_kw)
-                    charge_possible = min(charge_available, (battery_kwh - soc[i-1]) / efficiency)
+                # Look ahead: for 15-min data, look ahead 24 intervals (6 hours), for hourly look ahead 6 intervals
+                lookforward = int(6 / time_interval_hours)
+                if prices.iloc[i] < prices.iloc[i:min(i+lookforward, intervals)].mean():  # Price is low
+                    charge_power_kw = min(net_production, battery_kw)
+                    charge_energy_kwh = charge_power_kw * time_interval_hours
+                    charge_possible_kwh = min(charge_energy_kwh, (battery_kwh - soc[i-1]) / efficiency)
 
-                    battery_charge[i] = charge_possible
-                    soc[i] = soc[i-1] + charge_possible * efficiency
-                    grid_export[i] = net_production - battery_charge[i]
+                    battery_charge[i] = charge_possible_kwh
+                    soc[i] = soc[i-1] + charge_possible_kwh * efficiency
+
+                    # Export is net production minus what we charged (both in energy)
+                    grid_export[i] = (net_production * time_interval_hours) - charge_possible_kwh
                 else:
                     soc[i] = soc[i-1]
-                    grid_export[i] = net_production
+                    grid_export[i] = net_production * time_interval_hours
         else:
             # Net consumption
-            deficit = -net_production
+            deficit = -net_production  # Power deficit in kW
 
             # Try to discharge battery if price is high or to avoid peak
-            if prices.iloc[i] > prices.iloc[max(0, i-6):i].mean() or deficit > 30:  # High price or high demand
-                discharge_available = min(deficit, battery_kw)
-                discharge_possible = min(discharge_available, soc[i-1])
+            lookback = int(6 / time_interval_hours)
+            if prices.iloc[i] > prices.iloc[max(0, i-lookback):i].mean() or deficit > 30:  # High price or high demand
+                discharge_power_kw = min(deficit, battery_kw)
+                discharge_energy_kwh = discharge_power_kw * time_interval_hours
+                discharge_possible_kwh = min(discharge_energy_kwh, soc[i-1])
 
-                battery_discharge[i] = discharge_possible
-                soc[i] = soc[i-1] - discharge_possible
+                battery_discharge[i] = discharge_possible_kwh
+                soc[i] = soc[i-1] - discharge_possible_kwh
 
-                # Import remaining from grid
-                grid_import[i] = deficit - discharge_possible
+                # Import remaining from grid (energy)
+                grid_import[i] = (deficit * time_interval_hours) - discharge_possible_kwh
             else:
                 soc[i] = soc[i-1]
-                grid_import[i] = deficit
+                grid_import[i] = deficit * time_interval_hours
 
     results = pd.DataFrame({
         'production_dc': production_dc,
@@ -309,26 +387,47 @@ def calculate_economics(results, battery_kwh, battery_cost_per_kwh):
 # Function get_power_tariff is now imported from config module
 # Using the centralized progressive tariff calculation
 
-def optimize_battery_size():
-    """Find optimal battery size using realistic data"""
+def optimize_battery_size(resolution='PT60M'):
+    """
+    Find optimal battery size using realistic data.
+
+    Args:
+        resolution: Time resolution - 'PT60M' (hourly, default) or 'PT15M' (15-minute)
+
+    Returns:
+        Optimization results DataFrame and data series
+    """
     battery_sizes = np.arange(10, 201, 10)  # 10 to 200 kWh
     results_list = []
 
-    # Load real data
+    # Load real data (always hourly from PVGIS)
     production_dc, production_ac, inverter_clipping = load_real_solar_production()
     consumption = generate_realistic_consumption_profile(production_dc.index)
-    prices = get_electricity_prices(production_dc.index)
 
-    print(f"Data loaded: {len(production_dc)} hours")
-    print(f"Max DC production: {production_dc.max():.1f} kW")
-    print(f"Max AC production: {production_ac.max():.1f} kW")
-    print(f"Average consumption: {consumption.mean():.1f} kW")
+    # Fetch prices at target resolution
+    print(f"\nOptimization Resolution: {resolution}")
+    prices = get_electricity_prices(production_dc.index, resolution=resolution)
+
+    # Prepare data for target resolution
+    prod_dc, prod_ac, cons, prices, timestamps = prepare_data_for_resolution(
+        production_dc, production_ac, consumption, prices, resolution
+    )
+
+    print(f"\nData prepared at {resolution} resolution:")
+    print(f"  Original: {len(production_dc)} hours")
+    print(f"  Optimizing with: {len(prod_dc)} intervals")
+    print(f"  Max DC production: {production_dc.max():.1f} kW")
+    print(f"  Max AC production: {production_ac.max():.1f} kW")
+    print(f"  Average consumption: {consumption.mean():.1f} kW")
+
+    # Determine time interval duration
+    time_interval_hours = 0.25 if resolution == 'PT15M' else 1.0
 
     for battery_kwh in battery_sizes:
         battery_kw = battery_kwh * 0.5  # C-rate of 0.5
 
-        # Simulate operation
-        sim_results = simulate_battery_operation(production_dc, production_ac, consumption, prices, battery_kwh, battery_kw)
+        # Simulate operation with prepared data at target resolution
+        sim_results = simulate_battery_operation(prod_dc, prod_ac, cons, prices, battery_kwh, battery_kw, time_interval_hours)
 
         # Calculate economics at different price points
         for cost_name, cost_per_kwh in [('market', ECONOMIC_PARAMS['battery_cost_market']),
@@ -349,7 +448,9 @@ def optimize_battery_size():
                 print(f"  NPV: {economics['npv']:,.0f} NOK")
                 print(f"  Payback: {economics['payback']:.1f} years")
 
-    return pd.DataFrame(results_list), production_dc, production_ac, inverter_clipping, consumption, prices
+    # Return both original hourly data and prepared data for resolution
+    return (pd.DataFrame(results_list), production_dc, production_ac,
+            inverter_clipping, consumption, prices if resolution == 'PT60M' else prod_dc)
 
 # Run optimization
 print("="*70)
@@ -362,7 +463,7 @@ optimization_results, production_dc, production_ac, inverter_clipping, consumpti
 optimal_target = optimization_results[optimization_results['cost_scenario'] == 'target'].nlargest(1, 'npv').iloc[0]
 optimal_market = optimization_results[optimization_results['cost_scenario'] == 'market'].nlargest(1, 'npv').iloc[0]
 
-# Run detailed simulation for base case (50 kWh)
+# Run detailed simulation for base case (50 kWh) - uses hourly data
 base_battery_kwh = 50
 base_battery_kw = 25
 base_results = simulate_battery_operation(production_dc, production_ac, consumption, prices, base_battery_kwh, base_battery_kw)

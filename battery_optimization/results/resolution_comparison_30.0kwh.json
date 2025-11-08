@@ -1,0 +1,43 @@
+{
+  "battery_config": {
+    "capacity_kwh": 30.0,
+    "power_kw": 15.0,
+    "cost_per_kwh": 2500
+  },
+  "data_points": {
+    "hourly": 8784,
+    "15min": 35136,
+    "ratio": 4.0
+  },
+  "arbitrage": {
+    "hourly": 2956.812738961347,
+    "15min": 3149.6792947774397,
+    "improvement_pct": 6.522785608798546
+  },
+  "power_tariff": {
+    "hourly": 0,
+    "15min": 0,
+    "change_pct": 0.0
+  },
+  "curtailment": {
+    "hourly": 8350.836404487025,
+    "15min": 8430.076750106804,
+    "change_pct": 0.9488911263691141
+  },
+  "total_savings": {
+    "hourly": 11307.649143448372,
+    "15min": 11579.756044884243,
+    "improvement_pct": 2.4063967495271026
+  },
+  "npv": {
+    "hourly": 42369.53132471976,
+    "15min": 45193.90791145301,
+    "improvement_pct": 6.666055767969787
+  },
+  "payback": {
+    "hourly": 6.632678379789918,
+    "15min": 6.476820384582613,
+    "improvement_years": 0.15585799520730514
+  },
+  "timestamp": "2025-11-08T02:42:49.051166"
+}

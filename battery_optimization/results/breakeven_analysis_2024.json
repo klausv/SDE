@@ -1,0 +1,45 @@
+{
+  "timestamp": "2025-11-08T01:37:59.418258",
+  "battery": {
+    "capacity_kwh": 30,
+    "power_kw": 15
+  },
+  "reference_case": {
+    "energy_cost": 160837.98403664888,
+    "power_cost": 19824,
+    "total_cost": 180661.98403664888,
+    "grid_import_kwh": 168785.77925000002,
+    "grid_export_kwh": 52704.04576383562,
+    "curtailment_kwh": 2161.495146164384,
+    "peak_kw": 36.986301369863014
+  },
+  "battery_case": {
+    "energy_cost": 158333.53507245734,
+    "power_cost": 10702.448598069832,
+    "degradation_cost": 4703.70918476875,
+    "total_cost": 173739.69285529593,
+    "curtailment_kwh": 1477.8507879899817
+  },
+  "savings": {
+    "annual_savings_nok": 6922.29118135295,
+    "energy_savings": 2504.4489641915425,
+    "power_savings": 9121.551401930168
+  },
+  "breakeven": {
+    "lifetime_years": 15,
+    "discount_rate": 0.05,
+    "annuity_factor": 10.3796580381806,
+    "pv_savings_nok": 71851.01530315682,
+    "breakeven_cost_per_kwh": 2395.033843438561,
+    "breakeven_total_cost": 71851.01530315682,
+    "market_cost_per_kwh": 5000,
+    "market_total_cost": 150000,
+    "npv_at_market_price": -78148.98469684318,
+    "viable": false
+  },
+  "system_costs": {
+    "battery_cell_cost_per_kwh": 3054,
+    "system_cost_per_kwh": 4434.2,
+    "total_investment": 133026.0
+  }
+}

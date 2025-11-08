@@ -1,0 +1,60 @@
+{
+  "battery": {
+    "kwh": 30,
+    "kw": 15
+  },
+  "period": {
+    "start": "2025-09-30",
+    "end": "2025-10-31",
+    "days": 33
+  },
+  "hourly": {
+    "resolution": "PT60M",
+    "period_days": 33,
+    "data_points": 769,
+    "timestep_hours": 1.0,
+    "spot_revenue": 14622.55048349786,
+    "spot_cost": 3987.9870493684293,
+    "net_spot": 10634.563434129432,
+    "power_cost": 3544.0,
+    "total_net_income": 7090.563434129432,
+    "battery_cycles": 31.217082451262847,
+    "avg_soc": 35.59399233624258,
+    "monthly_peaks": {
+      "9": 25.61701581815242,
+      "10": 27.37397100105016
+    }
+  },
+  "15min": {
+    "resolution": "PT15M",
+    "period_days": 33,
+    "data_points": 3076,
+    "timestep_hours": 0.25,
+    "spot_revenue": 14436.402213498082,
+    "spot_cost": 3877.6784597047367,
+    "net_spot": 10558.723753793345,
+    "power_cost": 3544.0,
+    "total_net_income": 7014.723753793345,
+    "battery_cycles": 33.73096170846271,
+    "avg_soc": 33.712405818261836,
+    "monthly_peaks": {
+      "9": 25.64112214989775,
+      "10": 27.492411402263595
+    }
+  },
+  "comparison": {
+    "spot_diff_kr": -75.83968033608653,
+    "spot_diff_pct": -0.713143334992904,
+    "power_diff_kr": 0.0,
+    "power_diff_pct": 0.0,
+    "total_diff_kr": -75.83968033608653,
+    "total_diff_pct": -1.0695860920028284,
+    "annual_estimate": {
+      "hourly_kr": 78425.92889264371,
+      "15min_kr": 77587.09606468397,
+      "diff_kr": -838.8328279597481,
+      "diff_pct": -1.0695860920028324
+    }
+  },
+  "timestamp": "2025-10-31T20:55:37.591969"
+}

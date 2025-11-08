@@ -14,5 +14,45 @@
     "fetched_date": "2025-10-27 01:29:53",
     "note": "Fetched via unified price fetcher",
     "eur_nok_rate": 11.5
+  },
+  "NO2_2024_60min": {
+    "area": "NO2",
+    "year": 2024,
+    "resolution": "PT60M",
+    "expected_points": 8760,
+    "source": "Simulated",
+    "fetched_date": "2025-10-31 20:03:53",
+    "note": "Fetched via unified price fetcher (PT60M)",
+    "eur_nok_rate": 11.5
+  },
+  "NO2_2024_15min": {
+    "area": "NO2",
+    "year": 2024,
+    "resolution": "PT15M",
+    "expected_points": 35040,
+    "source": "Simulated",
+    "fetched_date": "2025-10-31 20:03:53",
+    "note": "Fetched via unified price fetcher (PT15M)",
+    "eur_nok_rate": 11.5
+  },
+  "NO2_2025_60min": {
+    "area": "NO2",
+    "year": 2025,
+    "resolution": "PT60M",
+    "expected_points": 8760,
+    "source": "Simulated",
+    "fetched_date": "2025-10-31 20:22:42",
+    "note": "Fetched via unified price fetcher (PT60M)",
+    "eur_nok_rate": 11.5
+  },
+  "NO2_2025_15min": {
+    "area": "NO2",
+    "year": 2025,
+    "resolution": "PT15M",
+    "expected_points": 35040,
+    "source": "Simulated",
+    "fetched_date": "2025-10-31 20:22:43",
+    "note": "Fetched via unified price fetcher (PT15M)",
+    "eur_nok_rate": 11.5
   }
 }

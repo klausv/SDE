@@ -1,0 +1,319 @@
+\documentclass[11pt,a4paper]{article}
+
+% Packages
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+\usepackage{float}
+\usepackage{titlesec}
+\usepackage{siunitx}
+
+% Page setup
+\geometry{
+    a4paper,
+    left=25mm,
+    right=25mm,
+    top=30mm,
+    bottom=30mm
+}
+
+% Headers and footers
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Break-Even Battery Cost Analysis}
+\fancyhead[R]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% Colors
+\definecolor{viablegreen}{RGB}{34,139,34}
+\definecolor{sectionblue}{RGB}{0,51,102}
+
+% Hyperref setup
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    urlcolor=blue,
+    citecolor=blue
+}
+
+% Title formatting
+\titleformat{\section}
+{\color{sectionblue}\Large\bfseries}{\thesection}{1em}{}
+
+% Document information
+\title{\textbf{Break-Even Battery Cost Analysis}\\
+\large Battery Storage Economic Viability Assessment}
+\author{Battery Optimization System\\
+Stavanger, Norway}
+\date{Generated: 2025-10-30}
+
+\begin{document}
+
+% Title page
+\maketitle
+\thispagestyle{empty}
+
+\vspace{1cm}
+
+\begin{abstract}
+This report presents a comprehensive break-even analysis for battery storage systems in conjunction with a 150\,kWp solar installation. The analysis evaluates the economic viability of battery storage considering annual operational savings, present value calculations, and market price comparisons. Sensitivity analyses explore the impact of battery lifetime and discount rates on investment decisions.
+\end{abstract}
+
+\newpage
+\setcounter{page}{1}
+
+% Executive Summary
+\section*{Executive Summary}
+\addcontentsline{toc}{section}{Executive Summary}
+
+\begin{itemize}
+    \item \textbf{Annual Savings:} 40,000 NOK
+    \item \textbf{Break-even Cost:} 15,443 NOK/kWh
+    \item \textbf{Market Price:} 5,000 NOK/kWh
+    \item \textbf{Required Price Reduction:} --208.9\%
+    \item \textbf{NPV at Market Prices:} \textcolor{viablegreen}{208,869 NOK (Viable)}
+\end{itemize}
+
+\section{System Assumptions}
+
+The break-even analysis is based on the following technical and economic parameters:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Parameter} & \textbf{Value} \\
+\midrule
+Battery capacity & 20 kWh \\
+Battery power & 10 kW \\
+Battery lifetime & 10 years \\
+Discount rate & 5.0\% \\
+Reference scenario & reference \\
+Battery scenario & simplerule\_20kwh \\
+\bottomrule
+\end{tabular}
+\caption{System and economic parameters}
+\label{tab:assumptions}
+\end{table}
+
+\section{Annual Savings Analysis}
+
+The battery storage system generates annual cost savings by reducing grid electricity consumption and optimizing energy usage patterns.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}lr@{}}
+\toprule
+\textbf{Cost Component} & \textbf{Value (NOK/year)} \\
+\midrule
+Reference case cost & 425,000 \\
+Battery strategy cost & 385,000 \\
+\textbf{Annual savings} & \textbf{40,000} \\
+\bottomrule
+\end{tabular}
+\caption{Annual operational cost comparison}
+\label{tab:annual_savings}
+\end{table}
+
+The battery strategy achieves a \textbf{9.4\% reduction} in annual electricity costs compared to the reference scenario without battery storage.
+
+\section{Present Value Calculations}
+
+To evaluate the long-term economic value of the annual savings, we calculate the present value of all future savings over the battery lifetime.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}lr@{}}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Annuity factor (PV of 1 NOK/year) & 7.7217 \\
+PV of total savings & 308,869 NOK \\
+\bottomrule
+\end{tabular}
+\caption{Present value calculations at 5\% discount rate}
+\label{tab:pv_calculations}
+\end{table}
+
+The annuity factor represents the present value of receiving 1 NOK per year for 10 years at a 5\% discount rate, calculated using:
+
+\begin{equation}
+    PVA = \frac{1 - (1 + r)^{-n}}{r}
+\end{equation}
+
+where $r$ is the discount rate and $n$ is the number of years.
+
+\section{Break-Even Battery Cost}
+
+The break-even battery cost represents the maximum upfront investment that results in zero net present value (NPV = 0).
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}lr@{}}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+\textbf{Break-even cost (total)} & \textbf{308,869 NOK} \\
+\textbf{Break-even cost (per kWh)} & \textbf{15,443 NOK/kWh} \\
+\textbf{Break-even cost (per kW)} & \textbf{30,887 NOK/kW} \\
+\bottomrule
+\end{tabular}
+\caption{Break-even battery cost analysis}
+\label{tab:breakeven}
+\end{table}
+
+Any battery system priced below 15,443 NOK/kWh will generate positive NPV and be economically viable under the stated assumptions.
+
+\section{Market Comparison}
+
+Comparing the break-even cost with current market prices reveals the investment viability:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}lr@{}}
+\toprule
+\textbf{Metric} & \textbf{Value} \\
+\midrule
+Current market price & 5,000 NOK/kWh \\
+Current market cost (total) & 100,000 NOK \\
+Required price reduction & --10,443 NOK/kWh (--208.9\%) \\
+NPV at market prices & 208,869 NOK \\
+\textbf{Investment viability} & \textcolor{viablegreen}{\textbf{✓ Viable (NPV > 0)}} \\
+\bottomrule
+\end{tabular}
+\caption{Market price comparison and viability assessment}
+\label{tab:market}
+\end{table}
+
+The negative required price reduction indicates that current market prices are \textbf{significantly below} the break-even threshold, making the investment highly attractive with a substantial positive NPV of 208,869 NOK.
+
+\section{Sensitivity Analysis}
+
+\subsection{Impact of Battery Lifetime}
+
+The break-even cost increases with longer battery lifetimes due to extended periods of annual savings:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}rrr@{}}
+\toprule
+\textbf{Lifetime (years)} & \textbf{Annuity Factor} & \textbf{Break-even (NOK/kWh)} \\
+\midrule
+5 & 4.3295 & 8,659 \\
+10 & 7.7217 & 15,443 \\
+15 & 10.3797 & 20,759 \\
+20 & 12.4622 & 24,924 \\
+\bottomrule
+\end{tabular}
+\caption{Break-even cost sensitivity to battery lifetime}
+\label{tab:lifetime_sensitivity}
+\end{table}
+
+Extending the battery lifetime from 10 to 15 years increases the break-even cost by 34\%, while doubling the lifetime to 20 years increases it by 61\%.
+
+\subsection{Impact of Discount Rate}
+
+Higher discount rates reduce the present value of future savings, lowering the break-even cost:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}rrr@{}}
+\toprule
+\textbf{Discount Rate (\%)} & \textbf{Annuity Factor} & \textbf{Break-even (NOK/kWh)} \\
+\midrule
+3.0 & 8.5302 & 17,060 \\
+5.0 & 7.7217 & 15,443 \\
+7.0 & 7.0236 & 14,047 \\
+10.0 & 6.1446 & 12,289 \\
+\bottomrule
+\end{tabular}
+\caption{Break-even cost sensitivity to discount rate}
+\label{tab:discount_sensitivity}
+\end{table}
+
+Reducing the discount rate from 5\% to 3\% increases the break-even cost by 10\%, while increasing to 10\% reduces it by 20\%.
+
+\section{Visualizations}
+
+\subsection{NPV Sensitivity to Battery Cost}
+
+Figure~\ref{fig:npv_sensitivity} illustrates how the net present value varies with battery cost. The intersection with the x-axis represents the break-even point.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{../results/reports/figures/breakeven/npv_sensitivity.png}
+\caption{Net present value as a function of battery cost}
+\label{fig:npv_sensitivity}
+\end{figure}
+
+\subsection{Break-even Cost vs Battery Lifetime}
+
+Figure~\ref{fig:lifetime} shows the relationship between battery lifetime and break-even cost, demonstrating the value of durable battery systems.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{../results/reports/figures/breakeven/breakeven_vs_lifetime.png}
+\caption{Break-even cost sensitivity to battery lifetime}
+\label{fig:lifetime}
+\end{figure}
+
+\subsection{Break-even Cost vs Discount Rate}
+
+Figure~\ref{fig:discount} illustrates the inverse relationship between discount rate and break-even cost.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{../results/reports/figures/breakeven/breakeven_vs_discount_rate.png}
+\caption{Break-even cost sensitivity to discount rate}
+\label{fig:discount}
+\end{figure}
+
+\section{Summary and Recommendations}
+
+\subsection{Key Findings}
+
+With the current battery strategy generating annual savings of \textbf{40,000 NOK/year}, the maximum economically viable battery cost is \textbf{15,443 NOK/kWh}. At current market prices of 5,000 NOK/kWh, the investment generates a positive NPV of \textbf{208,869 NOK}.
+
+\begin{center}
+\textcolor{viablegreen}{\Large\textbf{✓ Investment is economically viable}}
+\end{center}
+
+\subsection{Optimization Opportunities}
+
+To further improve the economic performance of the battery storage system, consider the following strategies:
+
+\begin{enumerate}
+    \item \textbf{Advanced Control Strategies:} Implement predictive control algorithms and machine learning models to optimize battery dispatch based on price forecasts and production patterns. This could increase annual savings beyond the current 40,000 NOK/year.
+
+    \item \textbf{Price Negotiation:} The current market price is already 67\% below break-even, but further price reductions through bulk purchasing or long-term contracts would improve NPV significantly.
+
+    \item \textbf{Extended Lifetime through O\&M:} Proper operation and maintenance can extend battery lifetime beyond 10 years. Table~\ref{tab:lifetime_sensitivity} shows that a 15-year lifetime increases break-even cost to 20,759 NOK/kWh, further strengthening the investment case.
+
+    \item \textbf{Capacity Optimization:} Evaluate whether the 20 kWh / 10 kW configuration is optimal. Alternative sizes may generate higher annual savings and improved economic returns.
+\end{enumerate}
+
+\subsection{Risk Considerations}
+
+While the analysis demonstrates strong economic viability, investors should consider:
+
+\begin{itemize}
+    \item \textbf{Electricity price volatility:} Future price changes affect annual savings
+    \item \textbf{Battery degradation:} Capacity fade may reduce savings over time
+    \item \textbf{Technology evolution:} Rapid advances may render current systems obsolete
+    \item \textbf{Regulatory changes:} Tariff structures and incentives may change
+\end{itemize}
+
+\section*{Conclusion}
+
+The break-even analysis conclusively demonstrates that battery storage is economically viable for the Stavanger solar installation under current market conditions. With a break-even cost of 15,443 NOK/kWh significantly exceeding the market price of 5,000 NOK/kWh, the investment offers robust financial returns with an NPV exceeding 200,000 NOK over a 10-year period.
+
+Implementation of the recommended optimization strategies could further enhance economic performance and reduce payback periods.
+
+\end{document}

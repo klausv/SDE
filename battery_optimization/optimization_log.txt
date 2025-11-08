@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "/mnt/c/Users/klaus/klauspython/SDE/battery_optimization/optimize_battery_dimensions.py", line 29, in <module>
+    from core.price_fetcher import PriceFetcher
+ImportError: cannot import name 'PriceFetcher' from 'core.price_fetcher' (/mnt/c/Users/klaus/klauspython/SDE/battery_optimization/core/price_fetcher.py)

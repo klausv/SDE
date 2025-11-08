@@ -1,0 +1,124 @@
+{
+  "timestamp": "2025-11-08T02:18:37.477038",
+  "battery_kwh": 30,
+  "battery_kw": 15,
+  "monthly_results": [
+    {
+      "month": 1,
+      "energy_cost": 26768.486003110746,
+      "power_cost": 1019.6967528751798,
+      "degradation_cost": 410.2238514380315,
+      "total_cost": 28198.40660742396,
+      "cycles": 20.045481598361437,
+      "curtailment_kwh": 0.0
+    },
+    {
+      "month": 2,
+      "energy_cost": 20709.34924225934,
+      "power_cost": 1019.6967528751798,
+      "degradation_cost": 328.74462889966736,
+      "total_cost": 22057.79062403419,
+      "cycles": 15.714046524570229,
+      "curtailment_kwh": 0.0
+    },
+    {
+      "month": 3,
+      "energy_cost": 11113.342278645585,
+      "power_cost": 979.3899128751799,
+      "degradation_cost": 363.2952961605232,
+      "total_cost": 12456.027487681287,
+      "cycles": 17.434761846464077,
+      "curtailment_kwh": 0.0
+    },
+    {
+      "month": 4,
+      "energy_cost": 5726.189622136848,
+      "power_cost": 768.4810383561644,
+      "degradation_cost": 491.25463147890457,
+      "total_cost": 6985.9252919719165,
+      "cycles": 23.76609818899537,
+      "curtailment_kwh": 164.6934401411752
+    },
+    {
+      "month": 5,
+      "energy_cost": 1464.230229823906,
+      "power_cost": 732.0255199984674,
+      "degradation_cost": 555.1200775864387,
+      "total_cost": 2751.375827408812,
+      "cycles": 27.183460794029912,
+      "curtailment_kwh": 608.9040611599291
+    },
+    {
+      "month": 6,
+      "energy_cost": 1776.977784829535,
+      "power_cost": 732.0255199984674,
+      "degradation_cost": 408.7959743389662,
+      "total_cost": 2917.7992791669685,
+      "cycles": 19.270345619100944,
+      "curtailment_kwh": 519.0683624082396
+    },
+    {
+      "month": 7,
+      "energy_cost": 4558.584029533088,
+      "power_cost": 737.676591639665,
+      "degradation_cost": 385.5636269844176,
+      "total_cost": 5681.824248157171,
+      "cycles": 17.723703585810128,
+      "curtailment_kwh": 89.30134544079556
+    },
+    {
+      "month": 8,
+      "energy_cost": 5609.846287938462,
+      "power_cost": 747.4793528751798,
+      "degradation_cost": 411.19381984965975,
+      "total_cost": 6768.519460663302,
+      "cycles": 19.294920602110036,
+      "curtailment_kwh": 95.88357883984207
+    },
+    {
+      "month": 9,
+      "energy_cost": 13707.626363989679,
+      "power_cost": 906.8868979508097,
+      "degradation_cost": 416.3230804072449,
+      "total_cost": 15030.836342347733,
+      "cycles": 19.888653318632812,
+      "curtailment_kwh": 0.0
+    },
+    {
+      "month": 10,
+      "energy_cost": 18125.466628442882,
+      "power_cost": 1019.6967528751798,
+      "degradation_cost": 299.1970636730028,
+      "total_cost": 19444.360444991067,
+      "cycles": 13.661829722041157,
+      "curtailment_kwh": 0.0
+    },
+    {
+      "month": 11,
+      "energy_cost": 21317.644107671054,
+      "power_cost": 1019.6967528751798,
+      "degradation_cost": 278.22731221681556,
+      "total_cost": 22615.56817276305,
+      "cycles": 12.7129804877275,
+      "curtailment_kwh": 0.0
+    },
+    {
+      "month": 12,
+      "energy_cost": 27455.792494076202,
+      "power_cost": 1019.6967528751798,
+      "degradation_cost": 355.76982173507815,
+      "total_cost": 28831.25906868646,
+      "cycles": 17.008190955546084,
+      "curtailment_kwh": 0.0
+    }
+  ],
+  "annual_totals": {
+    "energy_cost": 158333.53507245734,
+    "power_cost": 10702.448598069832,
+    "degradation_cost": 4703.70918476875,
+    "total_cost": 173739.6928552959,
+    "total_cycles": 223.70447324338966,
+    "total_curtailment_kwh": 1477.8507879899817,
+    "total_degradation_pct": 1.0267865498294588
+  }
+}

@@ -1,0 +1,136 @@
+{
+  "battery_kwh": 30,
+  "battery_kw": 15,
+  "year": 2024,
+  "discount_rate": 0.05,
+  "lifetime_years": 15,
+  "annual_cost_without_battery": 173018.41181556592,
+  "annual_cost_with_battery": 166294.43661321932,
+  "annual_saving": 6723.975202346621,
+  "npv_savings": 69792.56325756409,
+  "breakeven_cost_per_kwh": 2326.4187752521366,
+  "market_price_per_kwh": 5000,
+  "required_reduction_pct": 53.47162449495727,
+  "monthly_results": [
+    {
+      "month": 1,
+      "cost_with_battery": 27551.640408511284,
+      "cost_without_battery": 28131.640474112744,
+      "monthly_saving": 580.0000656014599,
+      "energy_cost": 26222.06797278556,
+      "power_cost": 1035.6164383561643,
+      "degradation_cost": 293.9559973696666,
+      "total_degradation": 0.3208426079127555
+    },
+    {
+      "month": 2,
+      "cost_with_battery": 21402.30030958257,
+      "cost_without_battery": 21987.807430525445,
+      "monthly_saving": 585.5071209428752,
+      "energy_cost": 20068.069642389295,
+      "power_cost": 1019.6967528751798,
+      "degradation_cost": 314.5339143181826,
+      "total_degradation": 0.343302678801771
+    },
+    {
+      "month": 3,
+      "cost_with_battery": 11828.673056542033,
+      "cost_without_battery": 12352.597804670871,
+      "monthly_saving": 523.9247481288385,
+      "energy_cost": 10625.98219147781,
+      "power_cost": 878.5093463117943,
+      "degradation_cost": 324.18151875251965,
+      "total_degradation": 0.3538326989222
+    },
+    {
+      "month": 4,
+      "cost_with_battery": 6319.996203624371,
+      "cost_without_battery": 6988.259223056027,
+      "monthly_saving": 668.2630194316553,
+      "energy_cost": 5284.507225558353,
+      "power_cost": 758.2327501651278,
+      "degradation_cost": 277.25622790096173,
+      "total_degradation": 0.3026153982765354
+    },
+    {
+      "month": 5,
+      "cost_with_battery": 1973.8353743484881,
+      "cost_without_battery": 2794.3002924147654,
+      "monthly_saving": 820.4649180662773,
+      "energy_cost": 1015.4673539614992,
+      "power_cost": 671.6630296032536,
+      "degradation_cost": 286.7049907838166,
+      "total_degradation": 0.3129283898535435
+    },
+    {
+      "month": 6,
+      "cost_with_battery": 2257.6187649994386,
+      "cost_without_battery": 2885.7718355991065,
+      "monthly_saving": 628.1530705996679,
+      "energy_cost": 1291.5898890013855,
+      "power_cost": 704.2264214328354,
+      "degradation_cost": 261.80245456529985,
+      "total_degradation": 0.2857481494927962
+    },
+    {
+      "month": 7,
+      "cost_with_battery": 5111.14963008296,
+      "cost_without_battery": 5602.951353918803,
+      "monthly_saving": 491.8017238358425,
+      "energy_cost": 4162.753827785744,
+      "power_cost": 708.3652041150118,
+      "degradation_cost": 240.03059818229002,
+      "total_degradation": 0.2619849358025432
+    },
+    {
+      "month": 8,
+      "cost_with_battery": 6197.482687853495,
+      "cost_without_battery": 6753.667518492616,
+      "monthly_saving": 556.1848306391212,
+      "energy_cost": 5244.534513504454,
+      "power_cost": 694.6539872884155,
+      "degradation_cost": 258.29418706071385,
+      "total_degradation": 0.28191899919309527
+    },
+    {
+      "month": 9,
+      "cost_with_battery": 14369.666809576966,
+      "cost_without_battery": 14979.002252975652,
+      "monthly_saving": 609.335443398686,
+      "energy_cost": 13225.708423600738,
+      "power_cost": 834.773340165128,
+      "degradation_cost": 309.1850458111626,
+      "total_degradation": 0.33746457739703406
+    },
+    {
+      "month": 10,
+      "cost_with_battery": 18916.055139001823,
+      "cost_without_battery": 19328.182474542555,
+      "monthly_saving": 412.127335540732,
+      "energy_cost": 17637.191887206296,
+      "power_cost": 959.6113401651278,
+      "degradation_cost": 319.2519116304603,
+      "total_degradation": 0.3484522065383762
+    },
+    {
+      "month": 11,
+      "cost_with_battery": 22159.573947812496,
+      "cost_without_battery": 22490.37545326872,
+      "monthly_saving": 330.8015054562238,
+      "energy_cost": 20908.068446081932,
+      "power_cost": 1019.6967528751798,
+      "degradation_cost": 231.80874885549613,
+      "total_degradation": 0.2530110771179831
+    },
+    {
+      "month": 12,
+      "cost_with_battery": 28206.44428128338,
+      "cost_without_battery": 28723.85570198862,
+      "monthly_saving": 517.4114207052407,
+      "energy_cost": 26894.58037619955,
+      "power_cost": 1035.6164383561643,
+      "degradation_cost": 276.247466727769,
+      "total_degradation": 0.30151437101917594
+    }
+  ]
+}

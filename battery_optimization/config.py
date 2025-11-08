@@ -98,8 +98,13 @@ class BatteryConfig:
     # Based on Skanbatt ESS Rack 48V 30.72kWh: 93,800 NOK / 30.72 kWh = 3,054 NOK/kWh
     battery_cell_cost_nok_per_kwh: float = 3054
 
-    # Fixed system component costs (independent of battery size)
-    inverter_cost_nok: float = 39726  # Victron Multiplus-II 5kVA × 6 units
+    # System component costs
+    # Inverter cost scales with power capacity (kW)
+    # Based on Victron Multiplus-II 5kVA × 6 units = 39,726 NOK for 30 kW reference
+    inverter_cost_nok_per_kw: float = 1324.2  # 39726 / 30 kW
+    inverter_reference_power_kw: float = 30.0  # Reference system documentation
+
+    # Control system cost (independent of battery size)
     control_system_cost_nok: float = 1680  # Cerbo GX control system
 
     # Legacy cost scenarios (for comparison/backward compatibility)
@@ -109,34 +114,62 @@ class BatteryConfig:
     # Degradation modeling configuration
     degradation: DegradationConfig = field(default_factory=DegradationConfig)
 
-    def get_system_cost_per_kwh(self, battery_kwh: float) -> float:
+    def get_total_battery_system_cost(self, battery_kwh: float, battery_kw: float) -> float:
         """
-        Calculate total system cost per kWh (for break-even analysis).
+        Calculate total battery system cost (battery cells + inverter + control).
 
-        System cost = Battery cells + Inverter + Control system
+        Battery system cost = Battery cells + Inverter (scaled by kW) + Control system
 
-        This is the cost used for economic analysis and break-even calculations,
-        as it represents the total investment required per kWh of storage.
+        Note: This is the cost of the battery subsystem, not the entire PV+battery system.
 
         Args:
             battery_kwh: Battery capacity [kWh]
+            battery_kw: Battery power [kW]
 
         Returns:
-            System cost [NOK/kWh] including all components
+            Total battery system cost [NOK]
 
         Examples:
-            30.72 kWh battery (Skanbatt reference):
-            (3054 × 30.72 + 39726 + 1680) / 30.72 = 4,404 NOK/kWh
+            30.72 kWh, 30 kW battery (Skanbatt reference):
+            3054 × 30.72 + 1324.2 × 30 + 1680 = 133,536 NOK
 
-            100 kWh battery:
-            (3054 × 100 + 39726 + 1680) / 100 = 3,468 NOK/kWh
-
-            Note: Larger batteries have lower cost/kWh because fixed costs
-                  (inverter + control) are amortized over more capacity.
+            100 kWh, 50 kW battery:
+            3054 × 100 + 1324.2 × 50 + 1680 = 373,090 NOK
         """
-        battery_cell_cost_total = self.battery_cell_cost_nok_per_kwh * battery_kwh
-        total_system_cost = battery_cell_cost_total + self.inverter_cost_nok + self.control_system_cost_nok
-        return total_system_cost / battery_kwh
+        battery_cells = self.battery_cell_cost_nok_per_kwh * battery_kwh
+        inverter = self.inverter_cost_nok_per_kw * battery_kw
+        control = self.control_system_cost_nok
+        return battery_cells + inverter + control
+
+    def get_battery_system_cost_per_kwh(self, battery_kwh: float, battery_kw: float) -> float:
+        """
+        Calculate battery system cost per kWh (for break-even analysis).
+
+        Battery system cost = Battery cells + Inverter (scaled by kW) + Control system
+
+        This is the cost used for economic analysis and break-even calculations,
+        as it represents the total investment required per kWh of battery storage.
+
+        Note: This is the cost of the battery subsystem, not the entire PV+battery system.
+
+        Args:
+            battery_kwh: Battery capacity [kWh]
+            battery_kw: Battery power [kW]
+
+        Returns:
+            Battery system cost [NOK/kWh] including all components
+
+        Examples:
+            30.72 kWh, 30 kW battery (Skanbatt reference):
+            (3054 × 30.72 + 1324.2 × 30 + 1680) / 30.72 = 4,347 NOK/kWh
+
+            100 kWh, 50 kW battery:
+            (3054 × 100 + 1324.2 × 50 + 1680) / 100 = 3,731 NOK/kWh
+
+            Note: Cost/kWh depends on both capacity (kWh) and power (kW).
+                  Larger capacities and lower C-rates have lower cost/kWh.
+        """
+        return self.get_total_battery_system_cost(battery_kwh, battery_kw) / battery_kwh
 
     def get_battery_cost(self) -> float:
         """

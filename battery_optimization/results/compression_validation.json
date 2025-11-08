@@ -1,0 +1,67 @@
+{
+  "battery_config": {
+    "kwh": 80,
+    "kw": 50
+  },
+  "baseline": {
+    "method": "baseline_full_year",
+    "annual_energy_cost": 133974.62063307982,
+    "annual_power_cost": 9546.200931196625,
+    "annual_total_cost": 143520.82156427644,
+    "elapsed_time": 57.31922221183777,
+    "timesteps": 8760,
+    "speedup": 1.0
+  },
+  "methods": [
+    {
+      "method": "temporal_agg_2h",
+      "annual_energy_cost": 135938.8352276563,
+      "annual_power_cost": 9107.993895339696,
+      "annual_total_cost": 145046.829122996,
+      "elapsed_time": 14.014267921447754,
+      "timesteps": 4379,
+      "speedup": 4.090061823644397,
+      "error_pct": 1.0632656238217788
+    },
+    {
+      "method": "temporal_agg_4h",
+      "annual_energy_cost": 184638.0163516379,
+      "annual_power_cost": 10717.730280412292,
+      "annual_total_cost": 195355.7466320502,
+      "elapsed_time": 4.21897292137146,
+      "timesteps": 2189,
+      "speedup": 13.586060702471878,
+      "error_pct": 36.11665854668987
+    },
+    {
+      "method": "representative_months_4",
+      "annual_energy_cost": 189618.54253099154,
+      "annual_power_cost": 11761.023000786028,
+      "annual_total_cost": 201379.56553177757,
+      "elapsed_time": 21.681268215179443,
+      "timesteps": 2953,
+      "speedup": 2.6437209135076127,
+      "error_pct": 40.313832750454836
+    },
+    {
+      "method": "combined_4months_2h",
+      "annual_energy_cost": 192039.83909797325,
+      "annual_power_cost": 11419.373843029462,
+      "annual_total_cost": 203459.2129410027,
+      "elapsed_time": 5.371878623962402,
+      "timesteps": 1476,
+      "speedup": 10.670237774203095,
+      "error_pct": 41.762854144395064
+    },
+    {
+      "method": "combined_4months_4h",
+      "annual_energy_cost": 194354.33217150567,
+      "annual_power_cost": 10975.422762888324,
+      "annual_total_cost": 205329.75493439398,
+      "elapsed_time": 1.4500656127929688,
+      "timesteps": 738,
+      "speedup": 39.528709395042696,
+      "error_pct": 43.06617861885366
+    }
+  ]
+}
