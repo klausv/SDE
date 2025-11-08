@@ -131,6 +131,7 @@ class MonthlyLPOptimizer:
                 # LFP degradation parameters
                 self.rho_constant = degradation_config.rho_constant  # %/cycle
                 self.dp_cal_per_timestep = degradation_config.dp_cal_per_hour * self.timestep_hours  # %/timestep
+                self.eol_degradation = degradation_config.eol_degradation_percent  # End-of-life threshold (20%)
                 self.C_bat = battery_config.get_battery_cost()  # NOK/kWh (battery cells only)
 
                 print(f"\n{'='*70}")
@@ -138,6 +139,7 @@ class MonthlyLPOptimizer:
                 print(f"{'='*70}")
                 print(f"  Cycle life: {degradation_config.cycle_life_full_dod:,} cycles @ 100% DOD")
                 print(f"  Calendar life: {degradation_config.calendar_life_years:.1f} years")
+                print(f"  EOL threshold: {self.eol_degradation:.1f}% degradation (80% SOH)")
                 print(f"  ρ_constant: {self.rho_constant:.6f} %/cycle")
                 print(f"  DP_cal: {self.dp_cal_per_timestep:.6f} %/timestep")
                 print(f"  C_bat: {self.C_bat:,.0f} NOK/kWh (battery cells only)")
@@ -303,8 +305,11 @@ class MonthlyLPOptimizer:
 
         if self.degradation_enabled:
             # Degradation cost: DP[t] in % → convert to NOK
-            # Cost = C_bat [NOK/kWh] × E_nom [kWh] × DP[t] / 100
-            c[9*T:10*T] = self.C_bat * self.E_nom / 100.0
+            # CRITICAL: Divide by EOL threshold (20%), not 100%
+            # Battery is end-of-life at 20% degradation (80% SOH)
+            # Cost = C_bat [NOK/kWh] × E_nom [kWh] × DP[t] / eol_degradation_percent
+            # This ensures full battery cost is amortized over usable lifetime
+            c[9*T:10*T] = self.C_bat * self.E_nom / self.eol_degradation
             # P_curtail at index 10*T:11*T (already zero from np.zeros)
             idx_peak = 11*T  # P_peak after curtailment
             idx_z = 11*T + 1  # z_trinn after P_peak
@@ -376,7 +381,7 @@ class MonthlyLPOptimizer:
             z_trinn = x[11*T+1:11*T+1+self.N_trinn]
 
             # Calculate degradation cost
-            degradation_cost = np.sum(DP * self.C_bat * self.E_nom / 100.0)
+            degradation_cost = np.sum(DP * self.C_bat * self.E_nom / self.eol_degradation)
         else:
             DOD_abs = None
             DP_cyc = None

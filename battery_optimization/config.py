@@ -25,7 +25,9 @@ class SolarSystemConfig:
     # Standardized values based on PVGIS and actual system
     pv_capacity_kwp: float = 138.55  # DC capacity from PVGIS
     inverter_capacity_kw: float = 110  # AC capacity (GROWATT MAX 110KTL3)
-    grid_export_limit_kw: float = 77  # 70% of inverter (safety margin)
+    grid_connection_limit_kw: float = 70  # Nettilkobling - symmetrisk grense
+    grid_import_limit_kw: float = 70  # Import begrenset av nettilkobling
+    grid_export_limit_kw: float = 70  # Export begrenset av nettilkobling
     tilt_degrees: float = 30.0  # Faktisk takhelning Snødevegen
     azimuth_degrees: float = 173.0  # South
     inverter_efficiency: float = 0.98
@@ -42,6 +44,45 @@ class ConsumptionConfig:
 
 
 @dataclass
+class DegradationConfig:
+    """LFP battery degradation modeling parameters (Korpås model)"""
+
+    # Enable/disable degradation modeling in LP optimization
+    enabled: bool = False
+
+    # LFP-specific parameters (based on Skanbatt ESS specifications)
+    # NOTE: These are TECHNICAL lifetimes (to 80% SOH), not economic lifetimes
+    cycle_life_full_dod: int = 5000          # Cycles at 100% DOD until 80% SOH (technical)
+    calendar_life_years: float = 28.0        # Years until 80% SOH from calendar aging only (technical)
+
+    # End-of-life degradation threshold (80% SOH = 20% capacity loss)
+    eol_degradation_percent: float = 20.0    # Battery unusable after 20% degradation
+
+    # Derived parameters (computed in __post_init__)
+    rho_constant: float = field(init=False)         # %/cycle constant (cyclic degradation rate)
+    dp_cal_per_hour: float = field(init=False)      # %/hour (calendric degradation rate)
+
+    def __post_init__(self):
+        """Calculate derived degradation parameters for LP formulation
+
+        IMPORTANT: Degradation is measured as percentage loss of capacity.
+        At 20% degradation, the battery has 80% SOH (State of Health).
+
+        Technical lifetime definitions:
+        - cycle_life_full_dod: Number of 100% DOD cycles to reach 20% degradation
+        - calendar_life_years: Years to reach 20% degradation from calendar aging alone
+        """
+        # Cyclic degradation rate: constant for LFP (simpler than NMC piecewise)
+        # 5000 cycles causes 20% degradation → 0.004% per full cycle
+        self.rho_constant = self.eol_degradation_percent / self.cycle_life_full_dod
+
+        # Calendric degradation per hour
+        # 28 years causes 20% degradation → 0.000081% per hour
+        hours_per_lifetime = self.calendar_life_years * 365 * 24
+        self.dp_cal_per_hour = self.eol_degradation_percent / hours_per_lifetime
+
+
+@dataclass
 class BatteryConfig:
     """Battery system parameters"""
     efficiency_roundtrip: float = 0.90
@@ -49,11 +90,65 @@ class BatteryConfig:
     max_soc: float = 0.90
     max_c_rate_charge: float = 1.0
     max_c_rate_discharge: float = 1.0
-    degradation_rate_yearly: float = 0.02
-    lifetime_years: int = 15
-    # Cost scenarios
+    degradation_rate_yearly: float = 0.02  # Simple annual degradation (for backward compatibility)
+    lifetime_years: int = 15  # ECONOMIC lifetime for NPV analysis (not technical lifetime!)
+
+    # COST SEPARATION (critical for proper degradation modeling)
+    # Battery cell cost ONLY (used for degradation calculation in LP)
+    # Based on Skanbatt ESS Rack 48V 30.72kWh: 93,800 NOK / 30.72 kWh = 3,054 NOK/kWh
+    battery_cell_cost_nok_per_kwh: float = 3054
+
+    # Fixed system component costs (independent of battery size)
+    inverter_cost_nok: float = 39726  # Victron Multiplus-II 5kVA × 6 units
+    control_system_cost_nok: float = 1680  # Cerbo GX control system
+
+    # Legacy cost scenarios (for comparison/backward compatibility)
     market_cost_nok_per_kwh: float = 5000
     target_cost_nok_per_kwh: float = 2500
+
+    # Degradation modeling configuration
+    degradation: DegradationConfig = field(default_factory=DegradationConfig)
+
+    def get_system_cost_per_kwh(self, battery_kwh: float) -> float:
+        """
+        Calculate total system cost per kWh (for break-even analysis).
+
+        System cost = Battery cells + Inverter + Control system
+
+        This is the cost used for economic analysis and break-even calculations,
+        as it represents the total investment required per kWh of storage.
+
+        Args:
+            battery_kwh: Battery capacity [kWh]
+
+        Returns:
+            System cost [NOK/kWh] including all components
+
+        Examples:
+            30.72 kWh battery (Skanbatt reference):
+            (3054 × 30.72 + 39726 + 1680) / 30.72 = 4,404 NOK/kWh
+
+            100 kWh battery:
+            (3054 × 100 + 39726 + 1680) / 100 = 3,468 NOK/kWh
+
+            Note: Larger batteries have lower cost/kWh because fixed costs
+                  (inverter + control) are amortized over more capacity.
+        """
+        battery_cell_cost_total = self.battery_cell_cost_nok_per_kwh * battery_kwh
+        total_system_cost = battery_cell_cost_total + self.inverter_cost_nok + self.control_system_cost_nok
+        return total_system_cost / battery_kwh
+
+    def get_battery_cost(self) -> float:
+        """
+        Get battery cell cost for degradation modeling [NOK/kWh].
+
+        This cost excludes inverter and control systems, as degradation
+        only affects the battery cells themselves.
+
+        Returns:
+            Battery cell cost [NOK/kWh]
+        """
+        return self.battery_cell_cost_nok_per_kwh
 
 
 @dataclass
@@ -142,9 +237,15 @@ class EconomicConfig:
 @dataclass
 class AnalysisConfig:
     """Analysis and simulation settings"""
+    # Time resolution for optimization
+    resolution: str = 'PT60M'  # 'PT60M' (hourly) or 'PT15M' (15-minute)
+
+    # Analysis options
     include_sensitivity: bool = False
     sensitivity_range: Tuple[float, float] = (2000, 6000)  # Battery cost range
     output_format: str = "full"
+
+    # Caching
     cache_data: bool = True
     use_cached_prices: bool = True
     use_cached_pvgis: bool = True
