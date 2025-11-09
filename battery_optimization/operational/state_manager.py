@@ -37,10 +37,10 @@ class BatterySystemState:
     power_tariff_rate_nok_per_kw: float = 0.0  # Average tariff rate [NOK/kW/month]
 
     def __post_init__(self):
-        """Initialize with current time if not provided."""
-        if self.last_update is None:
-            self.last_update = datetime.now()
-        if self.month_start_date is None:
+        """Initialize month start date if not provided."""
+        # Note: Do NOT auto-initialize last_update to datetime.now() for simulations!
+        # The first update_from_measurement() call will set it correctly.
+        if self.month_start_date is None and self.last_update is not None:
             self.month_start_date = self.last_update.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
     @property

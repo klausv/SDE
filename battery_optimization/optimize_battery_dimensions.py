@@ -28,7 +28,9 @@ import multiprocessing
 # Import existing modules
 from config import BatteryOptimizationConfig
 from core.lp_monthly_optimizer import MonthlyLPOptimizer
+from core.rolling_horizon_optimizer import RollingHorizonOptimizer
 from core.price_fetcher import ENTSOEPriceFetcher
+from operational.state_manager import BatterySystemState, calculate_average_power_tariff_rate
 
 
 class BatterySizingOptimizer:
@@ -249,65 +251,28 @@ class BatterySizingOptimizer:
                 battery_kw=P_max
             )
 
-            # Split data by month
-            annual_savings = 0.0
-            monthly_results = []
-
-            # TODO: LEVEL 2 PARALLELIZATION - Monthly Optimization
+            # Rolling Horizon Simulation (replaces monthly LP loop)
             # ===========================================================
-            # POTENTIAL SPEEDUP: Additional 12x (combined with Level 1 = 144x total!)
-            #
-            # APPROACH:
-            # 1. Run all 12 months in parallel with fixed SOC boundary conditions:
-            #    - E_initial = 0.5 * E_nom (50% SOC) for all months
-            #    - E_final = 0.5 * E_nom (50% SOC) enforced as constraint
-            #
-            # 2. SOC BOUNDARY HANDLING:
-            #    - Fixed 50% start/end ensures continuity over year
-            #    - Error from boundary mismatch ≈ 0.5 * 1/30 ≈ 1.67% per month
-            #    - Annual error < 2% (acceptable for optimization)
-            #
-            # 3. ITERATIVE REFINEMENT (optional):
-            #    - After parallel solve, update E_initial[m+1] = E_final[m]
-            #    - Re-optimize months with SOC mismatches > 5%
-            #    - Typically converges in 1-2 iterations
-            #
-            # 4. IMPLEMENTATION:
-            #    results = Parallel(n_jobs=12)(
-            #        delayed(optimize_month_with_boundary)(
-            #            month, E_initial=0.5*E_nom, E_final_target=0.5*E_nom
-            #        ) for month in range(1, 13)
-            #    )
-            #
-            # 5. COMPUTATIONAL IMPACT:
-            #    - Current: 12 months × 2.5 min/battery = 30 min per configuration
-            #    - Level 1 parallel: 30 min / 12 CPUs ≈ 2.5 min per configuration (36 configs = 1.5 hrs total)
-            #    - Level 1 + Level 2: 2.5 min / 12 CPUs ≈ 12 sec per configuration (36 configs = 7 min total!)
-            #
-            # 6. TRADE-OFFS:
-            #    - Pro: 12x additional speedup
-            #    - Pro: Simple implementation with fixed boundaries
-            #    - Con: ~2% accuracy loss from boundary approximation
-            #    - Con: Requires more memory (12 LP problems simultaneously)
-            #
-            # STATUS: Not implemented (Level 1 parallelization sufficient for now)
+            # Use rolling 24-hour windows with 15-minute resolution
+            # to simulate operational battery control over full year
             # ===========================================================
 
+            # Baseline cost (no battery) - calculate once for full year
+            baseline_optimizer = MonthlyLPOptimizer(
+                config=self.config,
+                resolution=self.resolution,
+                battery_kwh=0,  # No battery
+                battery_kw=0
+            )
+
+            # Calculate baseline cost by month (for reference case)
+            baseline_annual_cost = 0.0
             for month in range(1, 13):
-                # Filter data for this month
                 mask = self.data['timestamps'].month == month
                 month_timestamps = self.data['timestamps'][mask]
                 month_pv = self.data['pv_production'][mask]
                 month_load = self.data['load_consumption'][mask]
                 month_prices = self.data['spot_prices'][mask]
-
-                # Get baseline cost (no battery)
-                baseline_optimizer = MonthlyLPOptimizer(
-                    config=self.config,
-                    resolution=self.resolution,
-                    battery_kwh=0,  # No battery
-                    battery_kw=0
-                )
 
                 baseline_result = baseline_optimizer.optimize_month(
                     month_idx=month,
@@ -317,31 +282,115 @@ class BatterySizingOptimizer:
                     timestamps=month_timestamps,
                     E_initial=0
                 )
+                baseline_annual_cost += baseline_result.objective_value
 
-                # Optimize with battery
-                E_initial = 0.5 * E_nom if month == 1 else monthly_results[-1].E_battery_final
+            # Rolling horizon simulation with battery
+            rolling_optimizer = RollingHorizonOptimizer(
+                config=self.config,
+                battery_kwh=E_nom,
+                battery_kw=P_max
+            )
 
-                result = optimizer.optimize_month(
-                    month_idx=month,
-                    pv_production=month_pv,
-                    load_consumption=month_load,
-                    spot_prices=month_prices,
-                    timestamps=month_timestamps,
-                    E_initial=E_initial
+            # Initialize system state
+            state = BatterySystemState(
+                current_soc_kwh=0.5 * E_nom,  # Start at 50% SOC
+                battery_capacity_kwh=E_nom,
+                current_monthly_peak_kw=0.0,
+                power_tariff_rate_nok_per_kw=calculate_average_power_tariff_rate(self.config.tariff)
+            )
+
+            # Simulate full year with rolling 24h windows
+            # NOTE: For cost calculation, we use NON-OVERLAPPING 24h windows
+            # (in real operation, we would re-optimize more frequently with overlapping windows,
+            #  but only execute the first timestep of each optimization)
+            total_battery_cost = 0.0
+            n_timesteps = len(self.data['timestamps'])
+            horizon_timesteps = 96  # 24 hours @ 15min resolution
+
+            t = 0
+            n_windows = 0
+            while t < n_timesteps:
+                # Extract 24h forecast window (non-overlapping for cost accounting)
+                t_end = min(t + horizon_timesteps, n_timesteps)
+                window_size = t_end - t
+
+                if window_size < horizon_timesteps:
+                    # Last window is shorter than 24h, pad with last values
+                    pv_forecast = np.concatenate([
+                        self.data['pv_production'][t:t_end],
+                        np.repeat(self.data['pv_production'][t_end-1], horizon_timesteps - window_size)
+                    ])
+                    load_forecast = np.concatenate([
+                        self.data['load_consumption'][t:t_end],
+                        np.repeat(self.data['load_consumption'][t_end-1], horizon_timesteps - window_size)
+                    ])
+                    price_forecast = np.concatenate([
+                        self.data['spot_prices'][t:t_end],
+                        np.repeat(self.data['spot_prices'][t_end-1], horizon_timesteps - window_size)
+                    ])
+                    timestamps_forecast = pd.date_range(
+                        start=self.data['timestamps'][t],
+                        periods=horizon_timesteps,
+                        freq='15min'
+                    )
+                else:
+                    pv_forecast = self.data['pv_production'][t:t_end]
+                    load_forecast = self.data['load_consumption'][t:t_end]
+                    price_forecast = self.data['spot_prices'][t:t_end]
+                    timestamps_forecast = self.data['timestamps'][t:t_end]
+
+                # Optimize 24h window
+                result = rolling_optimizer.optimize_24h(
+                    current_state=state,
+                    pv_production=pv_forecast,
+                    load_consumption=load_forecast,
+                    spot_prices=price_forecast,
+                    timestamps=timestamps_forecast,
+                    verbose=False
                 )
 
                 if not result.success:
                     if verbose:
-                        print(f"  ⚠ Month {month} failed: {result.message}")
+                        print(f"  ⚠ Rolling horizon failed at t={t}: {result.message}")
                     self.npv_cache[cache_key] = float('-inf')
                     return float('-inf')
 
-                monthly_savings = baseline_result.objective_value - result.objective_value
-                annual_savings += monthly_savings
-                monthly_results.append(result)
+                # Accumulate cost for ACTUAL executed period (not full forecast)
+                # Use objective_value directly (not separated components, as peak penalty calc is buggy)
+                if window_size == horizon_timesteps:
+                    # Full 24h window - use full cost
+                    total_battery_cost += result.objective_value
+                else:
+                    # Partial window - prorate cost by actual timesteps
+                    fraction = window_size / horizon_timesteps
+                    total_battery_cost += result.objective_value * fraction
 
-                if verbose:
-                    print(f"  Month {month:2d}: Savings = {monthly_savings:8,.0f} NOK")
+                # Debug first few windows
+                if verbose and n_windows < 3:
+                    print(f"  Window {n_windows}: cost={result.objective_value:.2f} NOK/24h")
+
+                # Update state for next window
+                # Use final SOC from optimization as starting point
+                state.update_from_measurement(
+                    timestamp=self.data['timestamps'][t_end-1] if t_end <= n_timesteps else self.data['timestamps'][-1],
+                    soc_kwh=result.E_battery_final,
+                    grid_import_power_kw=result.P_grid_import[-1] if len(result.P_grid_import) > 0 else 0.0
+                )
+
+                # Move to next 24h window (non-overlapping)
+                t += horizon_timesteps
+                n_windows += 1
+
+                if verbose and n_windows % 30 == 0:  # Progress every 30 windows
+                    print(f"  Progress: {n_windows} windows simulated ({t}/{n_timesteps} timesteps)...")
+
+            # Calculate annual savings
+            annual_savings = baseline_annual_cost - total_battery_cost
+
+            if verbose:
+                print(f"  Baseline annual cost: {baseline_annual_cost:,.0f} NOK")
+                print(f"  Battery annual cost: {total_battery_cost:,.0f} NOK")
+                print(f"  Annual savings: {annual_savings:,.0f} NOK")
 
             # Calculate NPV
             pv_factor = sum([1 / (1 + self.discount_rate)**y for y in range(1, self.project_years + 1)])

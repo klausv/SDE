@@ -41,14 +41,26 @@ class RollingHorizonResult:
     E_battery: np.ndarray         # Battery energy [kWh]
     P_curtail: np.ndarray         # Solar curtailment [kW]
 
+    # Degradation variables (96 timesteps @ 15min)
+    E_delta_pos: np.ndarray       # Positive energy change [kWh]
+    E_delta_neg: np.ndarray       # Negative energy change [kWh]
+    DOD_abs: np.ndarray           # Absolute depth of discharge [0-1]
+    DP_cyc: np.ndarray            # Cyclic degradation [%]
+    DP_total: np.ndarray          # Total degradation [%]
+
     # Aggregated metrics (using progressive LP approximation)
     objective_value: float        # Total cost [NOK] - uses progressive tariff
     energy_cost: float            # Energy cost component [NOK]
     peak_penalty_cost: float      # Peak penalty [NOK] - progressive approximation
+    degradation_cost: float       # Degradation cost [NOK]
 
     # Actual costs (post-processing with step function)
     peak_penalty_actual: float    # Actual step function peak penalty [NOK]
-    objective_value_actual: float # Actual total cost [NOK] - energy + actual penalty
+    objective_value_actual: float # Actual total cost [NOK] - energy + actual penalty (excludes degradation)
+
+    # Degradation metrics
+    dp_cal_per_timestep: float    # Calendar degradation per timestep [%]
+    equivalent_cycles: float      # Total equivalent full cycles (sum of DOD_abs)
 
     # Status
     success: bool
@@ -165,10 +177,34 @@ class RollingHorizonOptimizer:
             self.p_trinn = np.array([100.0])  # Single 100 kW bracket
             self.c_trinn = np.array([50.0])   # 50 NOK/kW/month default
 
+        # LFP degradation model parameters
+        degradation_config = battery_config.degradation if (battery_config and hasattr(battery_config, 'degradation')) else None
+        if degradation_config:
+            self.cycle_life_full_dod = degradation_config.cycle_life_full_dod
+            self.calendar_life_years = degradation_config.calendar_life_years
+            self.eol_degradation_pct = degradation_config.eol_degradation_percent
+        else:
+            # Fallback defaults for LFP battery
+            self.cycle_life_full_dod = 5000  # cycles @ 100% DOD
+            self.calendar_life_years = 28.0  # years
+            self.eol_degradation_pct = 20.0  # % (80% SOH at EOL)
+
+        # Derived degradation rates
+        self.rho_constant = self.eol_degradation_pct / self.cycle_life_full_dod  # %/cycle
+        self.dp_cal_per_hour = self.eol_degradation_pct / (self.calendar_life_years * 365 * 24)  # %/hour
+        self.dp_cal_per_timestep = self.dp_cal_per_hour * self.timestep_hours  # %/timestep
+
+        # Battery cost for degradation calculation
+        if battery_config and hasattr(battery_config, 'cost_per_kwh'):
+            self.battery_cost_nok_per_kwh = battery_config.cost_per_kwh
+        else:
+            self.battery_cost_nok_per_kwh = 3054  # NOK/kWh (Skanbatt default)
+
         print(f"  Battery: {self.E_nom:.1f} kWh, {self.P_max_charge:.1f} kW")
         print(f"  SOC limits: [{self.SOC_min*100:.0f}%, {self.SOC_max*100:.0f}%]")
         print(f"  Grid limits: Import {self.P_grid_import_limit:.0f} kW, Export {self.P_grid_export_limit:.0f} kW")
         print(f"  Power tariff: {self.N_trinn} brackets")
+        print(f"  Degradation: LFP model (ρ={self.rho_constant:.6f}%/cycle, cal={self.dp_cal_per_hour:.8f}%/hour)")
         print(f"{'='*70}\n")
 
     def get_energy_costs(self, timestamps: pd.DatetimeIndex, spot_prices: np.ndarray):
@@ -252,6 +288,107 @@ class RollingHorizonOptimizer:
         # where z[i] is fill fraction and c_trinn[i] is incremental cost for bracket i
         return np.sum(self.c_trinn * z)
 
+    def _build_degradation_equality_constraints(self, T: int, n_vars: int, E_initial: float) -> tuple:
+        """
+        Build degradation equality constraints for LP formulation.
+
+        Constraints (3*T total):
+        1. Energy delta balance: E_delta_pos[t] - E_delta_neg[t] = E[t] - E[t-1]  (T constraints)
+        2. DOD definition: DOD_abs[t] * E_nom - E_delta_pos[t] - E_delta_neg[t] = 0  (T constraints)
+        3. Cyclic degradation: DP_cyc[t] - rho_constant * DOD_abs[t] = 0  (T constraints)
+
+        Args:
+            T: Number of timesteps
+            n_vars: Total number of LP variables
+            E_initial: Initial battery energy [kWh]
+
+        Returns:
+            (A_eq_degradation, b_eq_degradation): Constraint matrix and RHS vector
+        """
+        A_eq_rows = []
+        b_eq_rows = []
+
+        # Constraint 1: Energy delta balance (T constraints)
+        # E_delta_pos[t] - E_delta_neg[t] - E[t] + E[t-1] = 0 for t > 0
+        # E_delta_pos[0] - E_delta_neg[0] - E[0] = -E_initial for t = 0
+        for t in range(T):
+            row = np.zeros(n_vars)
+            row[6*T + t] = 1.0    # E_delta_pos[t]
+            row[7*T + t] = -1.0   # -E_delta_neg[t]
+            row[4*T + t] = -1.0   # -E[t]
+
+            if t == 0:
+                # E_delta_pos[0] - E_delta_neg[0] - E[0] = -E_initial
+                b_eq_rows.append(-E_initial)
+            else:
+                # E_delta_pos[t] - E_delta_neg[t] - E[t] + E[t-1] = 0
+                row[4*T + t - 1] = 1.0  # +E[t-1]
+                b_eq_rows.append(0)
+
+            A_eq_rows.append(row)
+
+        # Constraint 2: DOD definition (T constraints)
+        # DOD_abs[t] * E_nom = E_delta_pos[t] + E_delta_neg[t]
+        # Rearrange: DOD_abs[t] * E_nom - E_delta_pos[t] - E_delta_neg[t] = 0
+        for t in range(T):
+            row = np.zeros(n_vars)
+            row[8*T + t] = self.E_nom  # DOD_abs[t] * E_nom
+            row[6*T + t] = -1.0        # -E_delta_pos[t]
+            row[7*T + t] = -1.0        # -E_delta_neg[t]
+            A_eq_rows.append(row)
+            b_eq_rows.append(0)
+
+        # Constraint 3: Cyclic degradation (T constraints)
+        # DP_cyc[t] = rho_constant * DOD_abs[t]
+        # Rearrange: DP_cyc[t] - rho_constant * DOD_abs[t] = 0
+        for t in range(T):
+            row = np.zeros(n_vars)
+            row[9*T + t] = 1.0                    # DP_cyc[t]
+            row[8*T + t] = -self.rho_constant     # -rho_constant * DOD_abs[t]
+            A_eq_rows.append(row)
+            b_eq_rows.append(0)
+
+        return np.array(A_eq_rows), np.array(b_eq_rows)
+
+    def _build_degradation_inequality_constraints(self, T: int, n_vars: int) -> tuple:
+        """
+        Build degradation inequality constraints for LP formulation.
+
+        Constraints (2*T total):
+        1. DP_total[t] >= DP_cyc[t]: Total degradation must exceed cyclic  (T constraints)
+        2. DP_total[t] >= dp_cal_per_timestep: Total degradation must exceed calendar  (T constraints)
+
+        These implement: DP_total[t] = max(DP_cyc[t], dp_cal_per_timestep)
+
+        Args:
+            T: Number of timesteps
+            n_vars: Total number of LP variables
+
+        Returns:
+            (A_ub_degradation, b_ub_degradation): Constraint matrix and RHS vector
+        """
+        A_ub_rows = []
+        b_ub_rows = []
+
+        # Constraint 1: DP_total[t] >= DP_cyc[t]
+        # Rearrange: -DP_total[t] + DP_cyc[t] <= 0
+        for t in range(T):
+            row = np.zeros(n_vars)
+            row[10*T + t] = -1.0  # -DP_total[t]
+            row[9*T + t] = 1.0    # +DP_cyc[t]
+            A_ub_rows.append(row)
+            b_ub_rows.append(0)
+
+        # Constraint 2: DP_total[t] >= dp_cal_per_timestep
+        # Rearrange: -DP_total[t] <= -dp_cal_per_timestep
+        for t in range(T):
+            row = np.zeros(n_vars)
+            row[10*T + t] = -1.0  # -DP_total[t]
+            A_ub_rows.append(row)
+            b_ub_rows.append(-self.dp_cal_per_timestep)
+
+        return np.array(A_ub_rows), np.array(b_ub_rows)
+
     def optimize_24h(self,
                      current_state: BatterySystemState,
                      pv_production: np.ndarray,
@@ -276,7 +413,7 @@ class RollingHorizonOptimizer:
         import time
         start_time = time.time()
 
-        T = self.T  # Always 96 timesteps
+        T = len(timestamps)  # Use actual window size (flexible: 24 for hourly, 96 for 15-min)
 
         if verbose:
             print(f"\n{'='*70}")
@@ -313,12 +450,14 @@ class RollingHorizonOptimizer:
             print(f"  Baseline tariff cost: {baseline_tariff_cost:.2f} NOK/month")
 
         # LP Problem Setup
-        # Decision variables: [P_charge, P_discharge, P_grid_import, P_grid_export, E_battery, P_curtail, P_monthly_peak_new, z[0..N_trinn-1]]
-        # Shape: (T, T, T, T, T, T, 1, N_trinn) = 6*T + 1 + N_trinn variables
-        n_vars = 6 * T + 1 + self.N_trinn
+        # Decision variables: [P_charge, P_discharge, P_grid_import, P_grid_export, E_battery, P_curtail,
+        #                      E_delta_pos, E_delta_neg, DOD_abs, DP_cyc, DP_total,
+        #                      P_monthly_peak_new, z[0..N_trinn-1]]
+        # Shape: (T, T, T, T, T, T, T, T, T, T, T, 1, N_trinn) = 11*T + 1 + N_trinn variables
+        n_vars = 11 * T + 1 + self.N_trinn
 
         # Cost vector c
-        # minimize: sum(c_import × P_grid_import - c_export × P_grid_export) + adaptive_peak_penalty × sum(P_peak_violation)
+        # minimize: energy_cost + degradation_cost + peak_tariff_cost
         c = np.zeros(n_vars)
 
         # P_charge cost: 0 (just energy transfer)
@@ -339,13 +478,30 @@ class RollingHorizonOptimizer:
         # P_curtail penalty: small cost to discourage unnecessary curtailment
         c[5*T:6*T] = 0.01  # 0.01 NOK/kWh penalty
 
+        # E_delta_pos cost: 0 (intermediate variable)
+        c[6*T:7*T] = 0
+
+        # E_delta_neg cost: 0 (intermediate variable)
+        c[7*T:8*T] = 0
+
+        # DOD_abs cost: 0 (intermediate variable)
+        c[8*T:9*T] = 0
+
+        # DP_cyc cost: 0 (intermediate variable)
+        c[9*T:10*T] = 0
+
+        # DP_total cost: degradation cost per percent
+        # Cost = (battery_cost_per_kwh * E_nom / eol_degradation_pct) NOK per % degradation
+        degradation_cost_per_percent = (self.battery_cost_nok_per_kwh * self.E_nom) / self.eol_degradation_pct
+        c[10*T:11*T] = degradation_cost_per_percent
+
         # P_monthly_peak_new: no direct cost (just used in constraints)
-        c[6*T] = 0.0
+        c[11*T] = 0.0
 
         # Tariff bracket costs: c_trinn[i] for z[i]
         # Objective: Σ c_trinn[i] × z[i] - baseline_tariff_cost
         # The baseline offset doesn't affect optimization, only final cost calculation
-        idx_z = 6*T + 1  # Start of z variables
+        idx_z = 11*T + 1  # Start of z variables
         c[idx_z : idx_z + self.N_trinn] = self.c_trinn  # NOK/kW/month per bracket
 
         # Bounds
@@ -374,6 +530,26 @@ class RollingHorizonOptimizer:
         # P_curtail: [0, infinity] (allow any curtailment needed)
         for t in range(T):
             bounds.append((0, None))
+
+        # E_delta_pos: [0, E_nom] (max single-step energy change)
+        for t in range(T):
+            bounds.append((0, self.E_nom))
+
+        # E_delta_neg: [0, E_nom] (max single-step energy change)
+        for t in range(T):
+            bounds.append((0, self.E_nom))
+
+        # DOD_abs: [0, 1] (normalized depth of discharge)
+        for t in range(T):
+            bounds.append((0, 1))
+
+        # DP_cyc: [0, eol_degradation_pct] (max cyclic degradation)
+        for t in range(T):
+            bounds.append((0, self.eol_degradation_pct))
+
+        # DP_total: [0, eol_degradation_pct] (max total degradation)
+        for t in range(T):
+            bounds.append((0, self.eol_degradation_pct))
 
         # P_monthly_peak_new: [current_monthly_peak_kw, infinity]
         # Must be at least current peak (can't reduce retroactively)
@@ -422,12 +598,19 @@ class RollingHorizonOptimizer:
         # Peak definition: P_monthly_peak_new = Σ p_trinn[i] × z[i]
         # Rearrange: P_monthly_peak_new - Σ p_trinn[i] × z[i] = 0
         row = np.zeros(n_vars)
-        row[6*T] = 1.0  # P_monthly_peak_new
-        idx_z = 6*T + 1
+        row[11*T] = 1.0  # P_monthly_peak_new (shifted index)
+        idx_z = 11*T + 1
         for i in range(self.N_trinn):
             row[idx_z + i] = -self.p_trinn[i]  # -p_trinn[i] × z[i]
         A_eq_rows.append(row)
         b_eq_rows.append(0)
+
+        # Degradation equality constraints (3*T constraints)
+        A_eq_degradation, b_eq_degradation = self._build_degradation_equality_constraints(
+            T, n_vars, current_state.current_soc_kwh
+        )
+        A_eq_rows.extend(A_eq_degradation)
+        b_eq_rows.extend(b_eq_degradation)
 
         A_eq = np.array(A_eq_rows)
         b_eq = np.array(b_eq_rows)
@@ -442,20 +625,25 @@ class RollingHorizonOptimizer:
         for t in range(T):
             row = np.zeros(n_vars)
             row[2*T + t] = 1   # P_grid_import[t]
-            row[6*T] = -1      # -P_monthly_peak_new (scalar, same index for all t)
+            row[11*T] = -1     # -P_monthly_peak_new (shifted index, scalar)
             A_ub_rows.append(row)
             b_ub_rows.append(0)  # RHS = 0
 
         # Ordered activation constraints: z[i] <= z[i-1] for i > 0
         # Ensures lower brackets fill first (like progressive tax brackets)
         # Rearrange: z[i] - z[i-1] <= 0
-        idx_z = 6*T + 1
+        idx_z = 11*T + 1  # Shifted index
         for i in range(1, self.N_trinn):
             row = np.zeros(n_vars)
             row[idx_z + i] = 1.0      # z[i]
             row[idx_z + i - 1] = -1.0  # -z[i-1]
             A_ub_rows.append(row)
             b_ub_rows.append(0)
+
+        # Degradation inequality constraints (2*T constraints)
+        A_ub_degradation, b_ub_degradation = self._build_degradation_inequality_constraints(T, n_vars)
+        A_ub_rows.extend(A_ub_degradation)
+        b_ub_rows.extend(b_ub_degradation)
 
         A_ub = np.array(A_ub_rows) if A_ub_rows else None
         b_ub = np.array(b_ub_rows) if b_ub_rows else None
@@ -488,11 +676,19 @@ class RollingHorizonOptimizer:
                 P_grid_export=np.zeros(T),
                 E_battery=np.zeros(T),
                 P_curtail=np.zeros(T),
+                E_delta_pos=np.zeros(T),
+                E_delta_neg=np.zeros(T),
+                DOD_abs=np.zeros(T),
+                DP_cyc=np.zeros(T),
+                DP_total=np.zeros(T),
                 objective_value=float('inf'),
                 energy_cost=0.0,
                 peak_penalty_cost=0.0,
                 peak_penalty_actual=0.0,
                 objective_value_actual=float('inf'),
+                degradation_cost=0.0,
+                dp_cal_per_timestep=self.dp_cal_per_timestep,
+                equivalent_cycles=0.0,
                 success=False,
                 message=result.message,
                 solve_time_seconds=solve_time
@@ -506,14 +702,25 @@ class RollingHorizonOptimizer:
         P_grid_export = x[3*T:4*T]
         E_battery = x[4*T:5*T]
         P_curtail = x[5*T:6*T]
-        P_monthly_peak_new = x[6*T]  # Scalar: consequential monthly peak after this 24h window
+        E_delta_pos = x[6*T:7*T]
+        E_delta_neg = x[7*T:8*T]
+        DOD_abs = x[8*T:9*T]
+        DP_cyc = x[9*T:10*T]
+        DP_total = x[10*T:11*T]
+        P_monthly_peak_new = x[11*T]  # Scalar: consequential monthly peak after this 24h window
 
         # Extract bracket allocations
-        idx_z = 6*T + 1
+        idx_z = 11*T + 1  # Shifted index
         z_new = x[idx_z : idx_z + self.N_trinn]
 
         # Calculate cost breakdown
         energy_cost = np.sum(c_import * P_grid_import * self.timestep_hours - c_export * P_grid_export * self.timestep_hours)
+
+        # Degradation cost: sum of degradation over 24h window
+        degradation_cost = np.sum(degradation_cost_per_percent * DP_total)
+
+        # Equivalent full cycles: sum of absolute depth of discharge
+        equivalent_cycles = np.sum(DOD_abs)
 
         # Power tariff penalty: differential cost using bracketed tariff (progressive LP approximation)
         # LP uses progressive approximation: Cost_progressive = Σ c_trinn[i] × z[i]
@@ -529,6 +736,8 @@ class RollingHorizonOptimizer:
             print(f"\n  ✓ Optimization successful!")
             print(f"  Objective: {result.fun:,.2f} NOK")
             print(f"  Energy cost: {energy_cost:,.2f} NOK")
+            print(f"  Degradation cost: {degradation_cost:,.2f} NOK")
+            print(f"  Equivalent cycles (24h): {equivalent_cycles:.4f} cycles")
             print(f"  Peak demand: {current_state.current_monthly_peak_kw:.2f} kW → {P_monthly_peak_new:.2f} kW")
             print(f"  Baseline tariff (progressive): {baseline_tariff_cost:.2f} NOK/month")
             print(f"  New tariff (progressive): {new_tariff_cost_progressive:.2f} NOK/month")
@@ -541,12 +750,12 @@ class RollingHorizonOptimizer:
             print(f"  Next action: {P_charge[0] - P_discharge[0]:.2f} kW")
             print(f"  Final SOC: {E_battery[-1]:.2f} kWh ({E_battery[-1]/self.E_nom*100:.1f}%)")
 
-        # Calculate true objective: energy cost + marginal peak penalty
+        # Calculate true objective: energy cost + degradation cost + marginal peak penalty
         # Progressive LP uses approximate tariff for optimization
-        true_objective_progressive = energy_cost + peak_penalty_cost_progressive
+        true_objective_progressive = energy_cost + degradation_cost + peak_penalty_cost_progressive
 
         # Actual objective with step function tariff for reporting
-        true_objective_actual = energy_cost + peak_penalty_actual
+        true_objective_actual = energy_cost + degradation_cost + peak_penalty_actual
 
         return RollingHorizonResult(
             P_charge=P_charge,
@@ -555,11 +764,19 @@ class RollingHorizonOptimizer:
             P_grid_export=P_grid_export,
             E_battery=E_battery,
             P_curtail=P_curtail,
+            E_delta_pos=E_delta_pos,
+            E_delta_neg=E_delta_neg,
+            DOD_abs=DOD_abs,
+            DP_cyc=DP_cyc,
+            DP_total=DP_total,
             objective_value=true_objective_progressive,  # Progressive LP cost
             energy_cost=energy_cost,
             peak_penalty_cost=peak_penalty_cost_progressive,  # Progressive LP penalty
             peak_penalty_actual=peak_penalty_actual,  # Actual step function penalty
             objective_value_actual=true_objective_actual,  # Actual total cost
+            degradation_cost=degradation_cost,
+            dp_cal_per_timestep=self.dp_cal_per_timestep,
+            equivalent_cycles=equivalent_cycles,
             success=True,
             message="Optimization successful",
             solve_time_seconds=solve_time
