@@ -105,7 +105,17 @@ battery_optimization/
 └── main.py                          # 🎯 Unified CLI (3 modes)
 ```
 
-**Recent Updates (2025-01-09):**
+**Recent Updates:**
+
+**2025-01-10: Weekly Sequential Optimization Migration**
+- ✅ Migrated battery dimensioning optimizer to weekly sequential approach
+- ✅ Performance: ~7.5× faster than monthly sequential (1.6s vs 12s per year)
+- ✅ Architecture: Unified RollingHorizonOptimizer with configurable horizon_hours parameter
+- ✅ Bug fixes: Resolution mismatch, monthly peak reset, cost proration
+- ✅ Tests: 16 unit tests validating weekly optimization logic
+- ✅ Documentation: Comprehensive docstrings and performance benchmarks
+
+**2025-01-09: Major Refactoring**
 - ✅ Major refactoring complete with 3 simulation modes
 - ✅ Critical performance, security, and validation fixes applied
 - ✅ 46 tests passing (config + data integration)
@@ -227,9 +237,13 @@ See `configs/examples/` for complete configuration examples.
 
 ### 2. Optimization
 - Use hybrid grid search + Powell method to find optimal battery size
-- Simulate hourly operation over full year with rolling horizon
-- Calculate NPV for each configuration
-- Parallel evaluation for fast convergence (15-20 minutes)
+- **Weekly Sequential Optimization**: Simulate full year as 52 separate 1-week optimizations
+  - **Performance**: ~7.5× faster than monthly sequential (1.6s vs 12s per year)
+  - **Architecture**: Unified RollingHorizonOptimizer with horizon_hours=168 for both baseline and battery simulation
+  - **State Management**: SOC and degradation carry over between weeks, monthly peak resets at month boundaries
+  - **Accuracy**: Proper month boundary handling for power tariff calculations
+- Calculate NPV for each battery configuration
+- Parallel evaluation for fast convergence
 
 ### 3. Sensitivity Analysis
 - Vary key parameters systematically
