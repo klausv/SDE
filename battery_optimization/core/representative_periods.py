@@ -17,7 +17,13 @@ from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 import logging
 
-from config import config
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent))
+from src.config.legacy_config_adapter import get_global_legacy_config
+
+# Create module-level config reference
+config = get_global_legacy_config()
 from core.lp_monthly_optimizer import MonthlyLPOptimizer
 
 logger = logging.getLogger(__name__)

@@ -1,0 +1,30 @@
+# Monthly Optimization Configuration
+# Mode: Single-month or multi-month analysis with full-month horizon
+
+mode: monthly
+time_resolution: PT60M  # Hourly resolution (PT15M for 15-minute)
+
+simulation_period:
+  start_date: "2024-01-01"
+  end_date: "2024-12-31"  # Full year data
+
+battery:
+  capacity_kwh: 100
+  power_kw: 75
+  efficiency: 0.90
+  initial_soc_percent: 50.0
+  min_soc_percent: 10.0
+  max_soc_percent: 90.0
+
+data_sources:
+  prices_file: "data/spot_prices/2024_NO2_hourly.csv"
+  production_file: "data/pv_profiles/pvgis_stavanger_2024.csv"
+  consumption_file: "data/consumption/commercial_2024.csv"
+
+mode_specific:
+  monthly:
+    months: [1, 2, 3]  # January, February, March (use "all" for full year)
+
+output_dir: "results/monthly_q1_2024"
+save_trajectory: true
+save_plots: true

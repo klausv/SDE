@@ -1,181 +1,334 @@
 #!/usr/bin/env python3
 """
-Battery Optimization System for 150kWp Solar Installation
-==========================================================
+Battery Optimization System - Unified Entry Point
+==================================================
 
-Main entry point for battery optimization analysis in Stavanger, Norway.
-Analyzes economic viability through peak shaving, energy arbitrage, and power tariff reduction.
+Unified simulation system supporting three modes:
+1. Rolling Horizon: Real-time operation with persistent state
+2. Monthly: Single or multi-month analysis
+3. Yearly: Annual investment analysis with weekly optimizations
 
 Usage:
-    python main.py simulate    # Run simulation with real PVGIS data
-    python main.py analyze     # Run sensitivity analysis
-    python main.py report      # Generate comprehensive report
-
-DC Production Tracking:
-    All simulations include DC tracking by default to accurately measure:
-    - Inverter clipping losses (DC > inverter capacity)
-    - Grid curtailment losses (AC > grid limit)
-    - Overall system efficiency
-
-Author: Battery Optimization Team
-Date: 2024-2025
+    python main.py run --config configs/rolling_horizon_realtime.yaml
+    python main.py rolling --battery-kwh 80 --battery-kw 60
+    python main.py monthly --months 1,2,3
+    python main.py yearly --resolution PT60M
 """
 
 import sys
 import argparse
-import subprocess
 from pathlib import Path
+from typing import Optional
 
-def run_simulation(args):
-    """Run battery simulation with real PVGIS data and DC tracking."""
-    cmd = ["python", "run_simulation.py"]
+# Add src to path for imports
+sys.path.insert(0, str(Path(__file__).parent))
 
-    if args.battery_range:
-        cmd.extend(["--battery-range"] + args.battery_range)
-    if args.output_prefix:
-        cmd.extend(["--output-prefix", args.output_prefix])
-    if args.base_battery:
-        cmd.extend(["--base-battery"] + args.base_battery)
+from src.config.simulation_config import SimulationConfig
+from src.simulation import (
+    RollingHorizonOrchestrator,
+    MonthlyOrchestrator,
+    YearlyOrchestrator,
+)
 
-    print(f"Running simulation with real PVGIS data...")
-    print(f"DC tracking enabled for inverter curtailment analysis")
-    print(f"Command: {' '.join(cmd)}")
-    subprocess.run(cmd)
 
-def run_optimization(args):
-    """Alias for simulation - both use real data now."""
-    print("Note: 'optimize' now runs the same real-data simulation")
-    
-    # Add default attributes for simulation if not present
-    if not hasattr(args, 'battery_range'):
-        args.battery_range = None
-    if not hasattr(args, 'output_prefix'):
-        args.output_prefix = None
-    if not hasattr(args, 'base_battery'):
-        args.base_battery = None
-    
-    run_simulation(args)
+def run_from_config(config_path: Path) -> None:
+    """
+    Run simulation from YAML configuration file.
 
-def run_analysis(args):
-    """Run sensitivity analysis across parameter variations."""
-    scripts = [
-        "sensitivity_analysis.py",
-        "analyze_value_drivers.py",
-    ]
+    Args:
+        config_path: Path to YAML configuration file
+    """
+    print(f"Loading configuration from: {config_path}")
 
-    for script in scripts:
-        script_path = Path("scripts") / script
-        if not script_path.exists():
-            script_path = Path(script)
+    try:
+        config = SimulationConfig.from_yaml(config_path)
+        config.validate()
+    except Exception as e:
+        print(f"Error loading configuration: {e}")
+        sys.exit(1)
 
-        if script_path.exists():
-            print(f"\nRunning {script}...")
-            subprocess.run(["python", str(script_path)])
-        else:
-            print(f"Warning: {script} not found")
+    # Select orchestrator based on mode
+    if config.mode == "rolling_horizon":
+        orchestrator = RollingHorizonOrchestrator(config)
+    elif config.mode == "monthly":
+        orchestrator = MonthlyOrchestrator(config)
+    elif config.mode == "yearly":
+        orchestrator = YearlyOrchestrator(config)
+    else:
+        print(f"Error: Unknown mode '{config.mode}'")
+        sys.exit(1)
 
-def generate_report(args):
-    """Generate comprehensive battery optimization report"""
-    print("Generating comprehensive report...")
-    
-    # Add default attributes for simulation if not present
-    if not hasattr(args, 'battery_range'):
-        args.battery_range = None
-    if not hasattr(args, 'output_prefix'):
-        args.output_prefix = None
-    if not hasattr(args, 'base_battery'):
-        args.base_battery = None
-    
-    # Run simulation first to get fresh data
-    run_simulation(args)
+    # Run simulation
+    try:
+        results = orchestrator.run()
+    except Exception as e:
+        print(f"\nSimulation failed: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
 
-    # Then generate visualizations
-    viz_scripts = [
-        "create_visualizations.py",
-        "plot_optimization_results.py"
-    ]
+    # Save results
+    output_dir = Path(config.output_dir)
+    print(f"\nSaving results to: {output_dir}")
+    results.save_all(output_dir, save_plots=config.save_plots)
 
-    for script in viz_scripts:
-        if Path(script).exists():
-            print(f"Generating visualizations with {script}...")
-            subprocess.run(["python", script])
+    print("\n" + "="*70)
+    print("Simulation Complete!")
+    print("="*70)
 
-    print("\nReport generation complete!")
-    print("Check results/ directory for output files")
+
+def run_rolling_horizon(args) -> None:
+    """Quick rolling horizon simulation with command-line parameters."""
+    # Create config programmatically
+    from battery_optimization.src.config.simulation_config import (
+        SimulationConfig,
+        BatteryConfigSim,
+        DataSourceConfig,
+        RollingHorizonModeConfig,
+        SimulationPeriodConfig,
+    )
+
+    config = SimulationConfig(
+        mode="rolling_horizon",
+        time_resolution=args.resolution,
+        simulation_period=SimulationPeriodConfig(
+            start_date=args.start_date,
+            end_date=args.end_date,
+        ),
+        battery=BatteryConfigSim(
+            capacity_kwh=args.battery_kwh,
+            power_kw=args.battery_kw,
+        ),
+        data_sources=DataSourceConfig(
+            prices_file=args.prices_file,
+            production_file=args.production_file,
+            consumption_file=args.consumption_file,
+        ),
+        rolling_horizon=RollingHorizonModeConfig(
+            horizon_hours=args.horizon_hours,
+            update_frequency_minutes=args.update_freq,
+        ),
+        output_dir=args.output_dir,
+    )
+
+    orchestrator = RollingHorizonOrchestrator(config)
+    results = orchestrator.run()
+
+    output_dir = Path(args.output_dir)
+    results.save_all(output_dir, save_plots=True)
+
+
+def run_monthly(args) -> None:
+    """Quick monthly simulation with command-line parameters."""
+    from battery_optimization.src.config.simulation_config import (
+        SimulationConfig,
+        BatteryConfigSim,
+        DataSourceConfig,
+        MonthlyModeConfig,
+        SimulationPeriodConfig,
+    )
+
+    # Parse months
+    if args.months == "all":
+        months = "all"
+    else:
+        months = [int(m) for m in args.months.split(',')]
+
+    config = SimulationConfig(
+        mode="monthly",
+        time_resolution=args.resolution,
+        simulation_period=SimulationPeriodConfig(
+            start_date=args.start_date,
+            end_date=args.end_date,
+        ),
+        battery=BatteryConfigSim(
+            capacity_kwh=args.battery_kwh,
+            power_kw=args.battery_kw,
+        ),
+        data_sources=DataSourceConfig(
+            prices_file=args.prices_file,
+            production_file=args.production_file,
+            consumption_file=args.consumption_file,
+        ),
+        monthly=MonthlyModeConfig(months=months),
+        output_dir=args.output_dir,
+    )
+
+    orchestrator = MonthlyOrchestrator(config)
+    results = orchestrator.run()
+
+    output_dir = Path(args.output_dir)
+    results.save_all(output_dir, save_plots=True)
+
+
+def run_yearly(args) -> None:
+    """Quick yearly simulation with command-line parameters."""
+    from battery_optimization.src.config.simulation_config import (
+        SimulationConfig,
+        BatteryConfigSim,
+        DataSourceConfig,
+        YearlyModeConfig,
+        SimulationPeriodConfig,
+    )
+
+    config = SimulationConfig(
+        mode="yearly",
+        time_resolution=args.resolution,
+        simulation_period=SimulationPeriodConfig(
+            start_date=args.start_date,
+            end_date=args.end_date,
+        ),
+        battery=BatteryConfigSim(
+            capacity_kwh=args.battery_kwh,
+            power_kw=args.battery_kw,
+        ),
+        data_sources=DataSourceConfig(
+            prices_file=args.prices_file,
+            production_file=args.production_file,
+            consumption_file=args.consumption_file,
+        ),
+        yearly=YearlyModeConfig(
+            horizon_hours=args.horizon_hours,
+            weeks=args.weeks,
+        ),
+        output_dir=args.output_dir,
+    )
+
+    orchestrator = YearlyOrchestrator(config)
+    results = orchestrator.run()
+
+    output_dir = Path(args.output_dir)
+    results.save_all(output_dir, save_plots=True)
+
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Battery Optimization System - Main Entry Point",
+        description="Battery Optimization System - Unified Entry Point",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python main.py simulate                    # Run standard simulation
-  python main.py simulate --battery-range 50 200  # Custom battery range
-  python main.py optimize                    # Find optimal configuration
-  python main.py analyze                     # Run sensitivity analysis
-  python main.py report                      # Generate full report
+  # Run from YAML configuration
+  python main.py run --config configs/rolling_horizon_realtime.yaml
+  python main.py run --config configs/monthly_analysis.yaml
 
-Key Features:
-  - DC production tracking (always enabled for accurate loss calculation)
-  - Inverter clipping analysis (150kWp DC -> 110kW AC)
-  - Grid curtailment analysis (110kW AC -> 77kW grid limit)
-  - Norwegian tariff structure (Lnett commercial)
-  - Real PVGIS solar data for Stavanger location
+  # Quick modes with CLI parameters
+  python main.py rolling --battery-kwh 80 --battery-kw 60
+  python main.py monthly --months 1,2,3 --resolution PT60M
+  python main.py yearly --weeks 52
         """
     )
 
-    # Subcommands
     subparsers = parser.add_subparsers(dest="command", help="Command to run")
 
-    # Simulate command
-    sim_parser = subparsers.add_parser("simulate", help="Run battery simulation")
-    sim_parser.add_argument("--battery-range", nargs=2, type=int, metavar=("MIN", "MAX"),
-                           help="Battery size range to test (kWh)")
-    sim_parser.add_argument("--output-prefix", type=str,
-                           help="Prefix for output files")
-    sim_parser.add_argument("--base-battery", nargs=2, type=int, metavar=("KWH", "KW"),
-                           help="Base case battery configuration")
-    sim_parser.add_argument("--resolution", type=str, default='PT60M',
-                           choices=['PT60M', 'PT15M'],
-                           help="Time resolution: PT60M (hourly, default) or PT15M (15-minute)")
+    # RUN command (from YAML config)
+    run_parser = subparsers.add_parser("run", help="Run simulation from YAML config")
+    run_parser.add_argument("--config", type=str, required=True,
+                           help="Path to YAML configuration file")
 
-    # Optimize command
-    opt_parser = subparsers.add_parser("optimize", help="Find optimal battery configuration")
-    opt_parser.add_argument("--use-cache", action="store_true",
-                           help="Use cached PVGIS and price data")
+    # Default data paths
+    default_prices = "data/spot_prices/2024_NO2_hourly.csv"
+    default_production = "data/pv_profiles/pvgis_stavanger_2024.csv"
+    default_consumption = "data/consumption/commercial_2024.csv"
 
-    # Analyze command
-    analyze_parser = subparsers.add_parser("analyze", help="Run sensitivity analysis")
+    # ROLLING command (quick rolling horizon mode)
+    rolling_parser = subparsers.add_parser("rolling", help="Quick rolling horizon mode")
+    rolling_parser.add_argument("--battery-kwh", type=float, default=80,
+                               help="Battery capacity (kWh)")
+    rolling_parser.add_argument("--battery-kw", type=float, default=60,
+                               help="Battery power (kW)")
+    rolling_parser.add_argument("--horizon-hours", type=int, default=24,
+                               help="Optimization horizon (hours)")
+    rolling_parser.add_argument("--update-freq", type=int, default=60,
+                               help="Update frequency (minutes)")
+    rolling_parser.add_argument("--resolution", type=str, default="PT60M",
+                               choices=["PT60M", "PT15M"],
+                               help="Time resolution")
+    rolling_parser.add_argument("--start-date", type=str, default="2024-01-01",
+                               help="Start date (YYYY-MM-DD)")
+    rolling_parser.add_argument("--end-date", type=str, default="2024-12-31",
+                               help="End date (YYYY-MM-DD)")
+    rolling_parser.add_argument("--prices-file", type=str, default=default_prices,
+                               help="Prices CSV file")
+    rolling_parser.add_argument("--production-file", type=str, default=default_production,
+                               help="Production CSV file")
+    rolling_parser.add_argument("--consumption-file", type=str, default=default_consumption,
+                               help="Consumption CSV file")
+    rolling_parser.add_argument("--output-dir", type=str, default="results/rolling_horizon",
+                               help="Output directory")
 
-    # Report command
-    report_parser = subparsers.add_parser("report", help="Generate comprehensive report")
-    report_parser.add_argument("--output-prefix", type=str, default="report",
-                              help="Prefix for report files")
+    # MONTHLY command (quick monthly mode)
+    monthly_parser = subparsers.add_parser("monthly", help="Quick monthly mode")
+    monthly_parser.add_argument("--battery-kwh", type=float, default=100,
+                               help="Battery capacity (kWh)")
+    monthly_parser.add_argument("--battery-kw", type=float, default=75,
+                               help="Battery power (kW)")
+    monthly_parser.add_argument("--months", type=str, default="all",
+                               help="Months to analyze (comma-separated or 'all')")
+    monthly_parser.add_argument("--resolution", type=str, default="PT60M",
+                               choices=["PT60M", "PT15M"],
+                               help="Time resolution")
+    monthly_parser.add_argument("--start-date", type=str, default="2024-01-01",
+                               help="Start date (YYYY-MM-DD)")
+    monthly_parser.add_argument("--end-date", type=str, default="2024-12-31",
+                               help="End date (YYYY-MM-DD)")
+    monthly_parser.add_argument("--prices-file", type=str, default=default_prices,
+                               help="Prices CSV file")
+    monthly_parser.add_argument("--production-file", type=str, default=default_production,
+                               help="Production CSV file")
+    monthly_parser.add_argument("--consumption-file", type=str, default=default_consumption,
+                               help="Consumption CSV file")
+    monthly_parser.add_argument("--output-dir", type=str, default="results/monthly",
+                               help="Output directory")
 
-    # Parse arguments
+    # YEARLY command (quick yearly mode)
+    yearly_parser = subparsers.add_parser("yearly", help="Quick yearly mode")
+    yearly_parser.add_argument("--battery-kwh", type=float, default=80,
+                               help="Battery capacity (kWh)")
+    yearly_parser.add_argument("--battery-kw", type=float, default=60,
+                               help="Battery power (kW)")
+    yearly_parser.add_argument("--horizon-hours", type=int, default=168,
+                               help="Weekly optimization horizon (hours)")
+    yearly_parser.add_argument("--weeks", type=int, default=52,
+                               help="Number of weeks to simulate")
+    yearly_parser.add_argument("--resolution", type=str, default="PT60M",
+                               choices=["PT60M", "PT15M"],
+                               help="Time resolution")
+    yearly_parser.add_argument("--start-date", type=str, default="2024-01-01",
+                               help="Start date (YYYY-MM-DD)")
+    yearly_parser.add_argument("--end-date", type=str, default="2024-12-31",
+                               help="End date (YYYY-MM-DD)")
+    yearly_parser.add_argument("--prices-file", type=str, default=default_prices,
+                               help="Prices CSV file")
+    yearly_parser.add_argument("--production-file", type=str, default=default_production,
+                               help="Production CSV file")
+    yearly_parser.add_argument("--consumption-file", type=str, default=default_consumption,
+                               help="Consumption CSV file")
+    yearly_parser.add_argument("--output-dir", type=str, default="results/yearly",
+                               help="Output directory")
+
     args = parser.parse_args()
 
     if not args.command:
-        print("Battery Optimization System v1.0")
-        print("================================")
-        print("\nSystem Configuration:")
-        print("  - PV System: 150 kWp DC (138.55 kWp rated)")
-        print("  - Inverter: 110 kW AC (oversizing 1.36)")
-        print("  - Grid Limit: 77 kW (curtailment above this)")
-        print("  - Location: Stavanger, Norway (58.97°N, 5.73°E)")
+        print("Battery Optimization System v2.0")
+        print("=================================")
+        print("\nUnified simulation system with three modes:")
+        print("  1. Rolling Horizon - Real-time operation")
+        print("  2. Monthly - Single/multi-month analysis")
+        print("  3. Yearly - Annual investment analysis")
         print("\nUse -h for help on available commands")
         parser.print_help()
         sys.exit(1)
 
     # Route to appropriate function
-    if args.command == "simulate":
-        run_simulation(args)
-    elif args.command == "optimize":
-        run_optimization(args)
-    elif args.command == "analyze":
-        run_analysis(args)
-    elif args.command == "report":
-        generate_report(args)
+    if args.command == "run":
+        run_from_config(Path(args.config))
+    elif args.command == "rolling":
+        run_rolling_horizon(args)
+    elif args.command == "monthly":
+        run_monthly(args)
+    elif args.command == "yearly":
+        run_yearly(args)
+
 
 if __name__ == "__main__":
     main()

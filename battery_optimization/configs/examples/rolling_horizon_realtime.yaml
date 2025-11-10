@@ -1,0 +1,32 @@
+# Rolling Horizon Simulation Configuration
+# Mode: Real-time operation with 24h lookahead and persistent state
+
+mode: rolling_horizon
+time_resolution: PT60M  # Hourly resolution (PT15M for 15-minute)
+
+simulation_period:
+  start_date: "2024-01-01"
+  end_date: "2024-01-31"  # Run for January 2024
+
+battery:
+  capacity_kwh: 80
+  power_kw: 60
+  efficiency: 0.90
+  initial_soc_percent: 50.0
+  min_soc_percent: 10.0
+  max_soc_percent: 90.0
+
+data_sources:
+  prices_file: "data/spot_prices/2024_NO2_hourly.csv"
+  production_file: "data/pv_profiles/pvgis_stavanger_2024.csv"
+  consumption_file: "data/consumption/commercial_2024.csv"
+
+mode_specific:
+  rolling_horizon:
+    horizon_hours: 24          # 24-hour lookahead window
+    update_frequency_minutes: 60  # Re-optimize every hour
+    persistent_state: true     # Carry battery state between windows
+
+output_dir: "results/rolling_horizon_jan2024"
+save_trajectory: true
+save_plots: true

@@ -1,0 +1,2 @@
+total_weeks,total_charged_kwh,total_discharged_kwh,total_import_kwh,total_export_kwh,total_energy_cost_nok,total_power_cost_nok,total_degradation_cost_nok,total_cost_nok,avg_weekly_cost_nok,avg_monthly_cost_nok,roundtrip_efficiency
+52,23689.05704816737,21331.535542927235,187861.96756280304,46854.96779712281,189810.004646118,2529.144486643534,0.0,192339.14913276155,3698.8297910146453,16028.262427730131,0.9004805678652997

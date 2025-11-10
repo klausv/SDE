@@ -1,0 +1,31 @@
+# Full Year 2024 Battery Optimization Configuration
+
+mode: yearly
+time_resolution: PT60M
+
+# Full year 2024 (8783 hours including DST)
+simulation_period:
+  start_date: "2024-01-01"
+  end_date: "2024-12-31"
+
+battery:
+  capacity_kwh: 30
+  power_kw: 15
+  efficiency: 0.90
+  initial_soc_percent: 50.0
+  min_soc_percent: 10.0
+  max_soc_percent: 90.0
+
+# Real data files
+data_sources:
+  prices_file: "data/spot_prices/NO2_2024_60min_real.csv"
+  production_file: "data/pv_profiles/pvgis_58.97_5.73_138.55kWp.csv"
+  consumption_file: "data/consumption/commercial_2024.csv"
+
+mode_specific:
+  yearly:
+    horizon_hours: 168  # 1 week = 7 days × 24 hours
+
+output_dir: "results/yearly_2024"
+save_trajectory: true
+save_plots: true

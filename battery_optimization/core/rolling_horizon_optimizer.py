@@ -27,7 +27,7 @@ from datetime import datetime, timedelta
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
-from operational.state_manager import BatterySystemState
+from src.operational.state_manager import BatterySystemState
 
 
 @dataclass

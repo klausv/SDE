@@ -1,0 +1,47 @@
+# Default Battery Optimization Simulation Configuration
+# Copy and customize this file for your specific simulation needs
+
+# Simulation mode: rolling_horizon | monthly | yearly
+mode: rolling_horizon
+
+# Time resolution: PT60M (hourly) | PT15M (15-minute)
+time_resolution: PT60M
+
+# Simulation time period
+simulation_period:
+  start_date: "2024-06-01"
+  end_date: "2024-06-30"
+
+# Battery system parameters
+battery:
+  capacity_kwh: 30
+  power_kw: 30
+  efficiency: 0.90
+  initial_soc_percent: 50.0
+  min_soc_percent: 10.0
+  max_soc_percent: 90.0
+
+# Input data file paths (relative to battery_optimization/)
+data_sources:
+  prices_file: "data/spot_prices/NO2_2024_60min_real.csv"
+  production_file: "data/pv_profiles/pvgis_58.97_5.73_138.55kWp.csv"
+  consumption_file: "data/consumption/commercial_2024.csv"
+
+# Mode-specific configuration
+mode_specific:
+  rolling_horizon:
+    horizon_hours: 24
+    update_frequency_minutes: 60
+    persistent_state: true
+
+  monthly:
+    months: "all"  # or list like [1, 2, 3] for specific months
+
+  yearly:
+    horizon_hours: 168  # 7 days
+    weeks: 52
+
+# Output settings
+output_dir: "results"
+save_trajectory: true
+save_plots: true

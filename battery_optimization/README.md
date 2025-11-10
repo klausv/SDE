@@ -55,7 +55,13 @@ ENTSOE_API_KEY=your_api_key_here
 ### 3. Run Analysis
 
 ```bash
-python main.py
+# Run from YAML config (recommended for complex setups)
+python main.py run --config configs/examples/rolling_horizon_realtime.yaml
+
+# Or use quick CLI modes for simple analysis
+python main.py rolling --battery-kwh 80 --battery-kw 60
+python main.py monthly --months 1,2,3 --resolution PT60M
+python main.py yearly --weeks 52 --resolution PT60M
 ```
 
 ## 📁 Project Structure
@@ -63,42 +69,92 @@ python main.py
 ```
 battery_optimization/
 ├── src/
-│   ├── config.py                    # System configuration
-│   ├── data_fetchers/
-│   │   ├── entso_e_client.py       # ENTSO-E API for spot prices
-│   │   └── solar_production.py      # PV production modeling
-│   ├── optimization/
-│   │   ├── battery_model.py        # Battery dynamics
-│   │   ├── economic_model.py       # NPV calculations
-│   │   └── optimizer.py            # Main optimization engine
-│   └── analysis/
-│       ├── sensitivity.py          # Sensitivity analysis
-│       └── visualization.py        # Result visualization
-├── data/                           # Cached data
-├── results/                        # Analysis outputs
-└── main.py                        # Entry point
+│   ├── config/                      # 🆕 Configuration system
+│   │   └── simulation_config.py     #     YAML-based config with validation
+│   ├── data/                        # 🆕 Data management layer
+│   │   ├── data_manager.py          #     Unified data loading & windowing
+│   │   └── file_loaders.py          #     CSV loaders with resampling
+│   ├── optimization/                # 🆕 Optimizer abstraction
+│   │   ├── base_optimizer.py        #     Abstract interface
+│   │   ├── rolling_horizon_adapter.py  #  24h rolling horizon
+│   │   ├── monthly_lp_adapter.py    #     Monthly LP optimization
+│   │   ├── weekly_optimizer.py      #     Weekly (yearly mode)
+│   │   └── optimizer_factory.py     #     Factory pattern
+│   ├── simulation/                  # 🆕 Orchestration layer
+│   │   ├── simulation_results.py    #     Results with export
+│   │   ├── rolling_horizon_orchestrator.py  # Real-time mode
+│   │   ├── monthly_orchestrator.py  #     Monthly analysis mode
+│   │   └── yearly_orchestrator.py   #     Yearly investment mode
+│   └── [legacy modules...]          # Original optimizers (still working)
+├── configs/                         # 🆕 YAML configuration files
+│   └── examples/                    #     Rolling, monthly, yearly examples
+├── tests/                           # 🆕 Test suite (46 tests)
+│   ├── config/                      #     Config tests (28 passing)
+│   ├── integration/                 #     Integration tests (18 passing)
+│   └── fixtures/                    #     Test data
+├── scripts/                         # 🆕 Organized scripts
+│   ├── analysis/                    #     Analysis scripts (14)
+│   ├── testing/                     #     Test scripts (16)
+│   └── visualization/               #     Plotting scripts (8)
+├── logs/                            # 🆕 Log files (11)
+├── docs/                            # Documentation
+├── archive/                         # Legacy/deprecated code
+│   └── legacy_entry_points/         # Old main.py and config.py
+├── data/                            # Cached data
+├── results/                         # Analysis outputs
+└── main.py                          # 🎯 Unified CLI (3 modes)
 ```
+
+**Recent Updates (2025-01-09):**
+- ✅ Major refactoring complete with 3 simulation modes
+- ✅ Critical performance, security, and validation fixes applied
+- ✅ 46 tests passing (config + data integration)
+- ✅ YAML-first configuration approach
+- ✅ Project reorganized for better maintainability
+- ✅ Legacy code archived - single unified entry point (main.py)
 
 ## 🔋 Key Features
 
-### 1. Battery Operation Strategies
+### 1. Three Simulation Modes (🆕)
+
+**Rolling Horizon** (Real-time Operation)
+- Persistent battery state across optimization windows
+- Configurable update frequency (default: 60 min)
+- 24-hour lookahead horizon
+- Monthly peak tracking
+- Use case: Real-time operational control
+
+**Monthly** (Analysis & Planning)
+- Single or multi-month optimization
+- Full-month horizon per solve
+- Proper power tariff modeling
+- Cost breakdown by month
+- Use case: Monthly performance analysis
+
+**Yearly** (Investment Analysis)
+- 52 weekly optimizations (168-hour horizon)
+- Persistent state across weeks
+- Annual economic metrics
+- Use case: Profitability and investment decisions
+
+### 2. Battery Operation Strategies
 - **Peak Shaving**: Minimize curtailment from grid limits
 - **Arbitrage**: Optimize based on price differentials
 - **Combined**: Intelligent priority-based control
 
-### 2. Economic Analysis
+### 3. Economic Analysis
 - Net Present Value (NPV) calculation
 - Internal Rate of Return (IRR)
 - Payback period analysis
 - Break-even battery cost determination
 
-### 3. Sensitivity Analysis
+### 4. Sensitivity Analysis
 - Battery size optimization (kWh and kW independently)
 - Price volatility impact
 - Tariff rate sensitivity
 - Degradation rate effects
 
-### 4. Data Sources
+### 5. Data Sources
 - **ENTSO-E**: Real-time NO2 electricity prices
 - **Lnett**: Actual grid tariffs for Stavanger
 - **PVLib**: Accurate solar production modeling
@@ -124,28 +180,43 @@ battery_optimization/
 
 ## 🛠️ Configuration
 
-Edit `src/config.py` to adjust:
+Create or edit YAML configuration files in `configs/` directory:
 
-```python
-# System parameters
-pv_capacity_kwp = 150.0
-inverter_capacity_kw = 110.0
-grid_capacity_kw = 77.0
+```yaml
+# Example: configs/my_analysis.yaml
+mode: rolling_horizon  # or 'monthly' or 'yearly'
+time_resolution: PT60M  # PT60M (hourly) or PT15M (15-min)
 
-# Economic assumptions
-discount_rate = 0.05  # 5% annual
-battery_lifetime_years = 15
-eur_to_nok = 11.5
+simulation_period:
+  start_date: "2024-01-01"
+  end_date: "2024-12-31"
 
-# Battery constraints
-round_trip_efficiency = 0.95
+battery:
+  capacity_kwh: 80
+  power_kw: 60
+  efficiency: 0.90
+  initial_soc_percent: 50.0
+  min_soc_percent: 10.0
+  max_soc_percent: 90.0
 
-# Battery sizing defaults
-battery_capacity_kwh = 50  # Updated default
-battery_power_kw = 20      # Updated default
-min_soc = 0.10
-max_soc = 0.90
+data_sources:
+  prices_file: "data/spot_prices/2024_NO2_hourly.csv"
+  production_file: "data/pv_profiles/pvgis_stavanger_2024.csv"
+  consumption_file: "data/consumption/commercial_2024.csv"
+
+mode_specific:
+  rolling_horizon:
+    horizon_hours: 24
+    update_frequency_minutes: 60
+    persistent_state: true
+  monthly:
+    months: [1, 2, 3]  # or "all"
+  yearly:
+    horizon_hours: 168  # 1 week
+    weeks: 52
 ```
+
+See `configs/examples/` for complete configuration examples.
 
 ## 📊 Analysis Methodology
 

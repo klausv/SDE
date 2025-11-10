@@ -1,0 +1,35 @@
+# Working Battery Optimization Configuration
+# Uses actual data files that exist in the project
+
+mode: rolling_horizon
+time_resolution: PT60M
+
+# Use June 2024 (1 month test run)
+# Note: PV data is from 2020 but will be aligned by month/day
+simulation_period:
+  start_date: "2024-06-01"
+  end_date: "2024-06-30"
+
+battery:
+  capacity_kwh: 80
+  power_kw: 60
+  efficiency: 0.90
+  initial_soc_percent: 50.0
+  min_soc_percent: 10.0
+  max_soc_percent: 90.0
+
+# These files actually exist
+data_sources:
+  prices_file: "data/spot_prices/NO2_2024_60min_real.csv"
+  production_file: "data/pv_profiles/pvgis_58.97_5.73_138.55kWp.csv"  # 2020 data but aligned by month/day
+  consumption_file: "data/consumption/commercial_2024.csv"
+
+mode_specific:
+  rolling_horizon:
+    horizon_hours: 24
+    update_frequency_minutes: 60
+    persistent_state: true
+
+output_dir: "results/working_test"
+save_trajectory: true
+save_plots: true
