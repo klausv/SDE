@@ -90,7 +90,7 @@ class RollingHorizonOptimizer:
     - Constraints: energy balance, battery dynamics, SOC limits, power limits, grid limits
     """
 
-    def __init__(self, config, battery_kwh: float = None, battery_kw: float = None):
+    def __init__(self, config, battery_kwh: float = None, battery_kw: float = None, horizon_hours: int = 24):
         """
         Initialize rolling horizon optimizer.
 
@@ -98,6 +98,7 @@ class RollingHorizonOptimizer:
             config: System configuration object
             battery_kwh: Battery capacity [kWh] (overrides config)
             battery_kw: Battery power rating [kW] (overrides config)
+            horizon_hours: Optimization horizon length in hours (default 24, supports 168 for weekly)
         """
         self.config = config
 
@@ -105,9 +106,9 @@ class RollingHorizonOptimizer:
         self.resolution = 'PT15M'
         self.timestep_hours = 0.25
 
-        # Fixed horizon: 24 hours = 96 timesteps
-        self.horizon_hours = 24
-        self.T = 96  # Number of timesteps
+        # Configurable horizon (supports 24h operational or 168h weekly planning)
+        self.horizon_hours = horizon_hours
+        self.T = int(horizon_hours / self.timestep_hours)  # Number of timesteps
 
         print(f"\n{'='*70}")
         print(f"Rolling Horizon Optimizer")
@@ -389,22 +390,22 @@ class RollingHorizonOptimizer:
 
         return np.array(A_ub_rows), np.array(b_ub_rows)
 
-    def optimize_24h(self,
-                     current_state: BatterySystemState,
-                     pv_production: np.ndarray,
-                     load_consumption: np.ndarray,
-                     spot_prices: np.ndarray,
-                     timestamps: pd.DatetimeIndex,
-                     verbose: bool = False) -> RollingHorizonResult:
+    def optimize_window(self,
+                        current_state: BatterySystemState,
+                        pv_production: np.ndarray,
+                        load_consumption: np.ndarray,
+                        spot_prices: np.ndarray,
+                        timestamps: pd.DatetimeIndex,
+                        verbose: bool = False) -> RollingHorizonResult:
         """
-        Optimize battery dispatch over next 24 hours.
+        Optimize battery dispatch over configured horizon (24h or 168h).
 
         Args:
             current_state: Current system state (SOC, monthly peak, etc.)
-            pv_production: PV forecast [kW], shape (96,)
-            load_consumption: Load forecast [kW], shape (96,)
-            spot_prices: Spot prices [NOK/kWh], shape (96,)
-            timestamps: DatetimeIndex for 24-hour window
+            pv_production: PV forecast [kW], shape (T,) where T depends on horizon_hours
+            load_consumption: Load forecast [kW], shape (T,)
+            spot_prices: Spot prices [NOK/kWh], shape (T,)
+            timestamps: DatetimeIndex for optimization window
             verbose: Print detailed output
 
         Returns:
@@ -781,3 +782,11 @@ class RollingHorizonOptimizer:
             message="Optimization successful",
             solve_time_seconds=solve_time
         )
+
+    def optimize_24h(self, *args, **kwargs) -> RollingHorizonResult:
+        """
+        Backward-compatible alias for optimize_window().
+
+        DEPRECATED: Use optimize_window() instead.
+        """
+        return self.optimize_window(*args, **kwargs)
