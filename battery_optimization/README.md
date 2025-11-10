@@ -226,9 +226,10 @@ See `configs/examples/` for complete configuration examples.
 - Apply Lnett tariff structure
 
 ### 2. Optimization
-- Use differential evolution to find optimal battery size
-- Simulate hourly operation over full year
+- Use hybrid grid search + Powell method to find optimal battery size
+- Simulate hourly operation over full year with rolling horizon
 - Calculate NPV for each configuration
+- Parallel evaluation for fast convergence (15-20 minutes)
 
 ### 3. Sensitivity Analysis
 - Vary key parameters systematically
