@@ -418,7 +418,7 @@ class BatteryOperationReport(PlotlyReportGenerator):
         )
 
         # Grid limit reference
-        grid_limit = self.result.simulation_metadata.get('grid_limit_kw', 77)
+        grid_limit = self.result.simulation_metadata.get('grid_limit_kw', 70)
         fig.add_hline(
             y=grid_limit, line_dash='dash', line_color='gray',
             annotation_text=f'Grid Limit ({grid_limit} kW)',

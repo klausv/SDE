@@ -12,11 +12,11 @@ solar:
   inverter_limit_kw: 110
   tilt_degrees: 30
   azimuth_degrees: 173  # South
-  grid_export_limit_kw: 77
+  grid_export_limit_kw: 70
 
 # Consumption
 consumption:
-  annual_kwh: 90000
+  annual_kwh: 70000
   profile_type: "commercial"  # commercial, residential, industrial
 
 # Battery defaults (can override via command line)

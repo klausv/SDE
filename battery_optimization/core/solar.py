@@ -67,7 +67,7 @@ class SolarSystem:
     def calculate_curtailment(
         self,
         production: pd.Series,
-        grid_limit_kw: float = 77
+        grid_limit_kw: float = 70
     ) -> dict:
         """Calculate curtailed energy"""
         curtailment = (production - grid_limit_kw).clip(lower=0)

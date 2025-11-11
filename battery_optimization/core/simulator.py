@@ -33,7 +33,7 @@ class BatterySimulator:
         consumption: pd.Series,
         spot_prices: pd.Series,
         solar_inverter_capacity_kw: float = 110.0,
-        grid_export_limit_kw: float = 77.0,
+        grid_export_limit_kw: float = 70.0,
         battery_inverter_efficiency: float = 0.98
     ) -> pd.DataFrame:
         """
@@ -44,14 +44,14 @@ class BatterySimulator:
                                                                  ↕
         Battery (DC) ←→ Battery Inverter (bi-directional) ←→ AC Bus
                                                                  ↕
-        Grid (export limit @ 77 kW, curtailment hvis overskudd)
+        Grid (export limit @ 70 kW, curtailment hvis overskudd)
 
         Args:
             production: Solkraftproduksjon DC (kW) med datetime index
             consumption: Forbruk AC (kW) med datetime index
             spot_prices: Spotpriser (NOK/kWh) med datetime index
             solar_inverter_capacity_kw: Maks AC fra solcelle-inverter (default 110)
-            grid_export_limit_kw: Maks eksport til nett (default 77)
+            grid_export_limit_kw: Maks eksport til nett (default 70)
             battery_inverter_efficiency: Batteriets inverter efficiency (default 0.98)
 
         Returns:
