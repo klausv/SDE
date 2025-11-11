@@ -1,0 +1,1 @@
+timestamp,P_charge_kw,P_discharge_kw,P_grid_import_kw,P_grid_export_kw,E_battery_kwh,P_curtail_kw,degradation_cycle_pct,degradation_total_pct,pv_production_kw,consumption_kw,spot_price_nok_per_kwh,energy_cost_nok,total_cost_nok

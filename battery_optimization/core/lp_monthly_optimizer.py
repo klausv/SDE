@@ -345,12 +345,20 @@ class MonthlyLPOptimizer:
 
         if not result.success:
             print(f"⚠ LP optimization failed: {result.message}")
+            # Calculate P_curtail to satisfy energy balance equation:
+            # pv_production + P_grid_import + η_inv*P_discharge = load_consumption + P_grid_export + P_charge/η_inv + P_curtail
+            # With P_charge=0, P_discharge=0, P_grid_import=load_consumption, P_grid_export=0:
+            # pv_production + load_consumption = load_consumption + P_curtail
+            # Therefore: P_curtail = pv_production (all solar gets curtailed)
+            P_curtail_fallback = pv_production.copy()
+
             return MonthlyLPResult(
                 P_charge=np.zeros(T),
                 P_discharge=np.zeros(T),
                 P_grid_import=load_consumption,
                 P_grid_export=np.zeros(T),
                 E_battery=np.full(T, E_initial),
+                P_curtail=P_curtail_fallback,
                 P_peak=0,
                 z_trinn=np.zeros(self.N_trinn),
                 objective_value=float('inf'),

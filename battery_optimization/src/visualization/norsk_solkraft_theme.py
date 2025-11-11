@@ -361,11 +361,19 @@ def get_semantic_colors():
     return SEMANTIC.copy()
 
 
-def apply_light_theme():
-    """Shortcut for å aktivere light theme globally."""
+def apply_light_theme(fig=None):
+    """
+    Shortcut for å aktivere light theme.
+
+    Args:
+        fig: Optional plotly figure to apply theme to. If None, sets global default.
+    """
     register_norsk_solkraft_themes()
-    pio.templates.default = "norsk_solkraft_light"
-    print("✅ Norsk Solkraft LIGHT theme activated (hvit bakgrunn)")
+    if fig is not None:
+        fig.update_layout(template='norsk_solkraft_light')
+    else:
+        pio.templates.default = "norsk_solkraft_light"
+        print("✅ Norsk Solkraft LIGHT theme activated (hvit bakgrunn)")
 
 
 def apply_dark_theme():

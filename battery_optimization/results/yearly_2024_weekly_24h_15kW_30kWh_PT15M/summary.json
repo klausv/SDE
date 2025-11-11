@@ -1,0 +1,8 @@
+{
+  "total_cost_nok": 0.0,
+  "energy_cost_nok": 0.0,
+  "power_cost_nok": 0.0,
+  "degradation_cost_nok": 0.0,
+  "avg_solve_time_s": NaN,
+  "total_solve_time_s": 0.0
+}

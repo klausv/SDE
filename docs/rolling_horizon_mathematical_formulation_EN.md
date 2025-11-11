@@ -1,5 +1,5 @@
-# Mathematical Formulation: 24-Hour Rolling Horizon Optimization Model
-
+# Realtime Battery Optimizer 24-Hour Rolling Horizon Optimization Model
+### Author:  Klaus Vogstad | klaus@norsksolkraft.no |norsksolkraft.no 
 **Documentation for battery optimization rolling horizon optimizer**
 
 Based on the implementation in `battery_optimization/core/rolling_horizon_optimizer.py`

@@ -1,0 +1,2 @@
+optimizer,battery_capacity_kwh,battery_power_kw,horizon_hours,window_type,resolution,year,timesteps,weeks_optimized,timestamp
+WeeklyOptimizer,30,15,168,weekly,PT60M,2024,8736,52,2025-11-11T04:31:58.444014

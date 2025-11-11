@@ -1,0 +1,44 @@
+{
+  "analysis_metadata": {
+    "timestamp": "2025-11-11T04:18:53.333224",
+    "resolution": "PT60M",
+    "horizon_hours": 168,
+    "year": 2024,
+    "discount_rate": 0.05,
+    "project_years": 15,
+    "battery_cost_per_kwh": 5000
+  },
+  "baseline": {
+    "annual_cost_nok": 163155.9528429206,
+    "annual_consumption_kwh": 241200.0,
+    "annual_pv_production_kwh": 127279.76165999999
+  },
+  "grid_search": {
+    "E_nom_range_kwh": [
+      20.0,
+      200.0
+    ],
+    "P_max_range_kw": [
+      10.0,
+      100.0
+    ],
+    "total_combinations": 49,
+    "best_E_nom_kwh": 20.0,
+    "best_P_max_kw": 25.0,
+    "best_npv_nok": -21866.436624606693
+  },
+  "powell_refinement": {
+    "optimal_E_nom_kwh": 5.0000345425982164,
+    "optimal_P_max_kw": 104.99994755213406,
+    "optimal_npv_nok": -3537.619465254738,
+    "improvement_over_grid_nok": 18328.817159351955,
+    "improvement_percent": 83.82169200228175
+  },
+  "economic_metrics": {
+    "c_rate": 20.999844432589043,
+    "payback_years": 12.09051135067864,
+    "breakeven_cost_per_kwh": 4292.480994857998,
+    "annual_savings_nok": 2067.7514778221375,
+    "capex_nok": 25000.172712991083
+  }
+}

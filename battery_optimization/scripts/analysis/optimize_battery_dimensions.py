@@ -29,7 +29,6 @@ Date: 2025-01-10 (Updated for weekly optimization)
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
-import matplotlib.pyplot as plt
 from pathlib import Path
 import json
 from datetime import datetime
@@ -41,25 +40,34 @@ import multiprocessing
 
 # Import existing modules
 from config import BatteryOptimizationConfig
-from core.lp_monthly_optimizer import MonthlyLPOptimizer
-from core.rolling_horizon_optimizer import RollingHorizonOptimizer
+from src.optimization.weekly_optimizer import WeeklyOptimizer
 from core.price_fetcher import ENTSOEPriceFetcher
-from operational.state_manager import BatterySystemState, calculate_average_power_tariff_rate
+from core.pvgis_solar import PVGISProduction
+from src.operational.state_manager import BatterySystemState
+
+# Import Plotly visualization functions
+from src.visualization.battery_sizing_plotly import (
+    plot_npv_heatmap_plotly,
+    plot_npv_surface_plotly,
+    plot_breakeven_heatmap_plotly,
+    plot_breakeven_surface_plotly,
+    export_plotly_figures
+)
 
 
 class BatterySizingOptimizer:
     """
     Optimize battery dimensions (E_nom, P_max) for maximum NPV using weekly sequential optimization.
 
-    Uses 52 separate 1-week (168-hour) optimizations per year instead of traditional
-    monthly or daily approaches. This provides ~7.5× speedup over monthly sequential
-    while maintaining proper month boundary handling for power tariffs.
+    Uses 52 separate 1-week (168-hour) optimizations per year with WeeklyOptimizer.
+    This provides fast and accurate battery dimensioning analysis.
 
     Architecture:
-    - Baseline cost: 52 weeks with RollingHorizonOptimizer (battery_kwh=0)
-    - Battery cost: 52 weeks with RollingHorizonOptimizer (battery_kwh=E_nom)
-    - State carryover: SOC and degradation between weeks
+    - Baseline cost: 52 weeks with WeeklyOptimizer (battery_kwh=0)
+    - Battery cost: 52 weeks with WeeklyOptimizer (battery_kwh=E_nom)
+    - State carryover: SOC between weeks
     - Peak reset: Monthly peak resets at month boundaries
+    - DEFAULT: PT60M (1-hour) resolution, 168h horizon
     """
 
     def __init__(self, config, year=2024, resolution='PT60M'):
@@ -601,17 +609,18 @@ class BatterySizingOptimizer:
             'iterations': result.nfev
         }
 
-    def visualize_npv_surface(self, grid_results, powell_result, output_dir='results'):
+    def visualize_npv_surface(self, grid_results, powell_result, output_dir='results', export_png=False):
         """
-        Create NPV surface visualization
+        Create interactive NPV surface visualizations using Plotly.
 
         Args:
             grid_results: Results from grid_search_coarse
             powell_result: Results from powell_refinement
             output_dir: Directory to save plots
+            export_png: If True, also export static PNG images (requires kaleido)
         """
         print("\n" + "="*70)
-        print("Generating Visualizations")
+        print("Generating Interactive NPV Visualizations (Plotly)")
         print("="*70)
 
         output_path = Path(__file__).parent / output_dir
@@ -621,105 +630,58 @@ class BatterySizingOptimizer:
         P_grid = grid_results['P_grid']
         npv_grid = grid_results['npv_grid']
 
-        # Create figure with subplots
-        fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+        # 1. NPV Heatmap (2D interactive)
+        print("\n1. Creating NPV heatmap...")
+        fig_npv_2d = plot_npv_heatmap_plotly(
+            E_grid=E_grid,
+            P_grid=P_grid,
+            npv_grid=npv_grid,
+            grid_best_E=grid_results['best_E'],
+            grid_best_P=grid_results['best_P'],
+            powell_optimal_E=powell_result['optimal_E'],
+            powell_optimal_P=powell_result['optimal_P']
+        )
 
-        # Plot 1: Contour plot
-        ax = axes[0]
-        E_mesh, P_mesh = np.meshgrid(E_grid, P_grid)
+        export_plotly_figures(
+            fig=fig_npv_2d,
+            output_path=output_path,
+            filename_base='battery_sizing_optimization',
+            export_png=export_png
+        )
 
-        # Convert to millions NOK for readability
-        npv_plot = npv_grid.T / 1e6
+        # 2. NPV 3D Surface
+        print("\n2. Creating 3D NPV surface...")
+        fig_npv_3d = plot_npv_surface_plotly(
+            E_grid=E_grid,
+            P_grid=P_grid,
+            npv_grid=npv_grid,
+            powell_optimal_E=powell_result['optimal_E'],
+            powell_optimal_P=powell_result['optimal_P'],
+            powell_optimal_npv=powell_result['optimal_npv']
+        )
 
-        contour = ax.contourf(E_mesh, P_mesh, npv_plot, levels=20, cmap='RdYlGn')
-        ax.contour(E_mesh, P_mesh, npv_plot, levels=10, colors='black', alpha=0.3, linewidths=0.5)
+        export_plotly_figures(
+            fig=fig_npv_3d,
+            output_path=output_path,
+            filename_base='battery_sizing_optimization_3d',
+            export_png=export_png
+        )
 
-        # Mark grid best point
-        ax.plot(grid_results['best_E'], grid_results['best_P'],
-                'b*', markersize=20, label=f"Grid best: ({grid_results['best_E']:.0f}, {grid_results['best_P']:.0f})")
+        print("\n✓ Interactive NPV visualizations complete!")
 
-        # Mark Powell optimal point
-        ax.plot(powell_result['optimal_E'], powell_result['optimal_P'],
-                'r*', markersize=20, label=f"Powell optimal: ({powell_result['optimal_E']:.0f}, {powell_result['optimal_P']:.0f})")
-
-        ax.set_xlabel('Battery Capacity (kWh)', fontsize=12)
-        ax.set_ylabel('Battery Power (kW)', fontsize=12)
-        ax.set_title('NPV Surface (Million NOK)', fontsize=14, fontweight='bold')
-        ax.legend(loc='upper right')
-        ax.grid(True, alpha=0.3)
-
-        # Colorbar
-        cbar = plt.colorbar(contour, ax=ax)
-        cbar.set_label('NPV (Million NOK)', fontsize=11)
-
-        # Plot 2: Cross-sections
-        ax = axes[1]
-
-        # E_nom cross-section at optimal P_max
-        P_idx = np.argmin(np.abs(P_grid - powell_result['optimal_P']))
-        ax.plot(E_grid, npv_grid[:, P_idx] / 1e6, 'b-o', linewidth=2,
-                label=f'P_max = {P_grid[P_idx]:.0f} kW (slice)')
-
-        # P_max cross-section at optimal E_nom
-        E_idx = np.argmin(np.abs(E_grid - powell_result['optimal_E']))
-        ax.plot(P_grid, npv_grid[E_idx, :] / 1e6, 'r-s', linewidth=2,
-                label=f'E_nom = {E_grid[E_idx]:.0f} kWh (slice)')
-
-        ax.axvline(powell_result['optimal_E'], color='blue', linestyle='--', alpha=0.5)
-        ax.axhline(powell_result['optimal_npv'] / 1e6, color='green', linestyle='--', alpha=0.5,
-                   label=f'Optimal NPV = {powell_result["optimal_npv"]/1e6:.2f} M NOK')
-
-        ax.set_xlabel('Battery Dimension (kWh or kW)', fontsize=12)
-        ax.set_ylabel('NPV (Million NOK)', fontsize=12)
-        ax.set_title('NPV Cross-Sections', fontsize=14, fontweight='bold')
-        ax.legend(loc='best')
-        ax.grid(True, alpha=0.3)
-
-        plt.tight_layout()
-
-        # Save figure
-        fig_path = output_path / 'battery_sizing_optimization.png'
-        plt.savefig(fig_path, dpi=300, bbox_inches='tight')
-        print(f"✓ Saved visualization: {fig_path}")
-
-        plt.close()
-
-        # Create 3D surface plot
-        fig = plt.figure(figsize=(12, 8))
-        ax = fig.add_subplot(111, projection='3d')
-
-        surf = ax.plot_surface(E_mesh, P_mesh, npv_plot, cmap='RdYlGn', alpha=0.8)
-
-        # Mark optimal point
-        ax.scatter([powell_result['optimal_E']], [powell_result['optimal_P']],
-                   [powell_result['optimal_npv']/1e6], color='red', s=100, marker='*',
-                   label=f"Optimal: ({powell_result['optimal_E']:.0f}, {powell_result['optimal_P']:.0f})")
-
-        ax.set_xlabel('Battery Capacity (kWh)', fontsize=11)
-        ax.set_ylabel('Battery Power (kW)', fontsize=11)
-        ax.set_zlabel('NPV (Million NOK)', fontsize=11)
-        ax.set_title('NPV Surface - 3D View', fontsize=14, fontweight='bold')
-
-        # Colorbar
-        fig.colorbar(surf, ax=ax, shrink=0.5, aspect=10)
-
-        # Save 3D plot
-        fig_path_3d = output_path / 'battery_sizing_optimization_3d.png'
-        plt.savefig(fig_path_3d, dpi=300, bbox_inches='tight')
-        print(f"✓ Saved 3D visualization: {fig_path_3d}")
-
-        plt.close()
-
-    def visualize_breakeven_costs(self, grid_results, powell_result, output_dir='results'):
+    def visualize_breakeven_costs(self, grid_results, powell_result, output_dir='results', export_png=False):
         """
-        Create break-even cost visualization
+        Create interactive break-even cost visualizations using Plotly.
 
         Args:
             grid_results: Results from grid_search_coarse (must include 'breakeven_grid')
             powell_result: Results from powell_refinement
             output_dir: Directory to save plots
+            export_png: If True, also export static PNG images (requires kaleido)
         """
-        print("\nGenerating Break-even Cost Visualizations...")
+        print("\n" + "="*70)
+        print("Generating Interactive Break-even Cost Visualizations (Plotly)")
+        print("="*70)
 
         output_path = Path(__file__).parent / output_dir
         output_path.mkdir(exist_ok=True)
@@ -728,96 +690,51 @@ class BatterySizingOptimizer:
         P_grid = grid_results['P_grid']
         breakeven_grid = grid_results['breakeven_grid']
 
-        # Create figure with subplots
-        fig, axes = plt.subplots(1, 2, figsize=(16, 6))
-
-        # Plot 1: Contour plot
-        ax = axes[0]
-        E_mesh, P_mesh = np.meshgrid(E_grid, P_grid)
-
-        # Convert to NOK/kWh (keep as is, no scaling)
-        breakeven_plot = breakeven_grid.T
-
-        contour = ax.contourf(E_mesh, P_mesh, breakeven_plot, levels=20, cmap='RdYlGn')
-        ax.contour(E_mesh, P_mesh, breakeven_plot, levels=10, colors='black', alpha=0.3, linewidths=0.5)
-
-        # Mark grid best point
-        ax.plot(grid_results['best_E'], grid_results['best_P'],
-                'b*', markersize=20, label=f"Grid best: ({grid_results['best_E']:.0f}, {grid_results['best_P']:.0f})")
-
-        # Mark Powell optimal point
-        ax.plot(powell_result['optimal_E'], powell_result['optimal_P'],
-                'r*', markersize=20, label=f"Powell optimal: ({powell_result['optimal_E']:.0f}, {powell_result['optimal_P']:.0f})")
-
-        ax.set_xlabel('Battery Capacity (kWh)', fontsize=12)
-        ax.set_ylabel('Battery Power (kW)', fontsize=12)
-        ax.set_title('Break-even Battery System Cost (NOK/kWh)', fontsize=14, fontweight='bold')
-        ax.legend(loc='upper right')
-        ax.grid(True, alpha=0.3)
-
-        # Colorbar
-        cbar = plt.colorbar(contour, ax=ax)
-        cbar.set_label('Break-even Cost (NOK/kWh)', fontsize=11)
-
-        # Plot 2: Cross-sections
-        ax = axes[1]
-
-        # E_nom cross-section at optimal P_max
+        # Find break-even at optimal point
         P_idx = np.argmin(np.abs(P_grid - powell_result['optimal_P']))
-        ax.plot(E_grid, breakeven_grid[:, P_idx], 'b-o', linewidth=2,
-                label=f'P_max = {P_grid[P_idx]:.0f} kW (slice)')
-
-        # P_max cross-section at optimal E_nom
         E_idx = np.argmin(np.abs(E_grid - powell_result['optimal_E']))
-        ax.plot(P_grid, breakeven_grid[E_idx, :], 'r-s', linewidth=2,
-                label=f'E_nom = {E_grid[E_idx]:.0f} kWh (slice)')
-
-        # Add reference lines for market costs
-        ax.axhline(5000, color='orange', linestyle='--', alpha=0.7, label='Market cost: 5000 NOK/kWh')
-        ax.axhline(2500, color='green', linestyle='--', alpha=0.7, label='Target cost: 2500 NOK/kWh')
-
-        ax.set_xlabel('Battery Dimension (kWh or kW)', fontsize=12)
-        ax.set_ylabel('Break-even Cost (NOK/kWh)', fontsize=12)
-        ax.set_title('Break-even Cost Cross-Sections', fontsize=14, fontweight='bold')
-        ax.legend(loc='best')
-        ax.grid(True, alpha=0.3)
-
-        plt.tight_layout()
-
-        # Save figure
-        fig_path = output_path / 'battery_sizing_breakeven_costs.png'
-        plt.savefig(fig_path, dpi=300, bbox_inches='tight')
-        print(f"✓ Saved break-even visualization: {fig_path}")
-
-        plt.close()
-
-        # Create 3D surface plot
-        fig = plt.figure(figsize=(12, 8))
-        ax = fig.add_subplot(111, projection='3d')
-
-        surf = ax.plot_surface(E_mesh, P_mesh, breakeven_plot, cmap='RdYlGn', alpha=0.8)
-
-        # Mark optimal point - get break-even at optimal
         optimal_breakeven = breakeven_grid[E_idx, P_idx]
-        ax.scatter([powell_result['optimal_E']], [powell_result['optimal_P']],
-                   [optimal_breakeven], color='red', s=100, marker='*',
-                   label=f"Optimal: {optimal_breakeven:.0f} NOK/kWh")
 
-        ax.set_xlabel('Battery Capacity (kWh)', fontsize=11)
-        ax.set_ylabel('Battery Power (kW)', fontsize=11)
-        ax.set_zlabel('Break-even Cost (NOK/kWh)', fontsize=11)
-        ax.set_title('Break-even Cost Surface - 3D View', fontsize=14, fontweight='bold')
-        ax.legend()
+        # 1. Break-even Cost Heatmap (2D interactive)
+        print("\n1. Creating break-even cost heatmap...")
+        fig_breakeven_2d = plot_breakeven_heatmap_plotly(
+            E_grid=E_grid,
+            P_grid=P_grid,
+            breakeven_grid=breakeven_grid,
+            grid_best_E=grid_results['best_E'],
+            grid_best_P=grid_results['best_P'],
+            powell_optimal_E=powell_result['optimal_E'],
+            powell_optimal_P=powell_result['optimal_P'],
+            market_cost=5000,
+            target_cost=2500
+        )
 
-        # Colorbar
-        fig.colorbar(surf, ax=ax, shrink=0.5, aspect=10)
+        export_plotly_figures(
+            fig=fig_breakeven_2d,
+            output_path=output_path,
+            filename_base='battery_sizing_breakeven_costs',
+            export_png=export_png
+        )
 
-        # Save 3D plot
-        fig_path_3d = output_path / 'battery_sizing_breakeven_costs_3d.png'
-        plt.savefig(fig_path_3d, dpi=300, bbox_inches='tight')
-        print(f"✓ Saved 3D break-even visualization: {fig_path_3d}")
+        # 2. Break-even Cost 3D Surface
+        print("\n2. Creating 3D break-even cost surface...")
+        fig_breakeven_3d = plot_breakeven_surface_plotly(
+            E_grid=E_grid,
+            P_grid=P_grid,
+            breakeven_grid=breakeven_grid,
+            powell_optimal_E=powell_result['optimal_E'],
+            powell_optimal_P=powell_result['optimal_P'],
+            optimal_breakeven=optimal_breakeven
+        )
 
-        plt.close()
+        export_plotly_figures(
+            fig=fig_breakeven_3d,
+            output_path=output_path,
+            filename_base='battery_sizing_breakeven_costs_3d',
+            export_png=export_png
+        )
+
+        print("\n✓ Interactive break-even cost visualizations complete!")
 
     def generate_report(self, grid_results, powell_result, output_dir='results'):
         """Generate comprehensive optimization report"""

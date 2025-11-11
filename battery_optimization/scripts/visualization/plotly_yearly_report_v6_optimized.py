@@ -9,6 +9,34 @@ Forbedringer v6:
 - Solid, tykkere spotpris-linje (#4CAF50, width 2.5)
 - Tabell-tekst 30% mindre, uten scrollbar
 - 11 rader totalt (down from 13, consolidation gains)
+
+v7 Changes (Dynamic Configuration):
+- Reads battery dimensions from metadata.csv (fallback to parameters)
+- Configurable tariff rates via BatteryConfig
+- Configurable degradation cost (calculated from battery cost if not specified)
+- No hardcoded battery dimensions or economic parameters
+
+Usage Examples:
+    # Option 1: Automatic - reads everything from metadata.csv
+    fig, breakdown, total, context = create_comprehensive_report("results/yearly_2024")
+
+    # Option 2: Custom configuration with metadata fallback
+    config = BatteryConfig(
+        tariff_peak=0.30,
+        tariff_offpeak=0.18,
+        degradation_cost_per_kwh=0.04
+    )
+    fig, breakdown, total, context = create_comprehensive_report("results/yearly_2024", config)
+
+    # Option 3: Complete manual override (ignores metadata.csv dimensions)
+    config = BatteryConfig(
+        battery_kwh=80,
+        battery_kw=40,
+        battery_cost_nok_per_kwh=5000,  # Calculates degradation from this
+        tariff_peak=0.296,
+        tariff_offpeak=0.176
+    )
+    fig, breakdown, total, context = create_comprehensive_report("results/yearly_2024", config)
 """
 
 import pandas as pd
@@ -17,12 +45,91 @@ from plotly.subplots import make_subplots
 import numpy as np
 from pathlib import Path
 import sys
+from dataclasses import dataclass
+from typing import Optional
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # Import Norsk Solkraft light theme
 from src.visualization.norsk_solkraft_theme import apply_light_theme
+
+
+@dataclass
+class BatteryConfig:
+    """Configuration for battery system and economic parameters.
+
+    Attributes:
+        battery_kwh: Battery capacity in kWh (read from metadata.csv if not specified)
+        battery_kw: Battery power rating in kW (read from metadata.csv if not specified)
+        tariff_peak: Peak hours network tariff in kr/kWh
+        tariff_offpeak: Off-peak hours network tariff in kr/kWh
+        energy_tax: Energy tax in kr/kWh
+        feed_in_premium: Feed-in premium for exported energy in kr/kWh
+        degradation_cost_per_kwh: Battery degradation cost per kWh cycled
+            If None, calculated from battery_cost_nok_per_kwh if provided
+        battery_cost_nok_per_kwh: Battery system cost in NOK/kWh (used to calculate degradation)
+        battery_lifetime_cycles: Expected lifetime cycles (used to calculate degradation)
+    """
+    battery_kwh: Optional[float] = None
+    battery_kw: Optional[float] = None
+    tariff_peak: float = 0.296
+    tariff_offpeak: float = 0.176
+    energy_tax: float = 0.1791
+    feed_in_premium: float = 0.04
+    degradation_cost_per_kwh: Optional[float] = None
+    battery_cost_nok_per_kwh: Optional[float] = None
+    battery_lifetime_cycles: float = 6000.0
+
+    def get_degradation_cost(self) -> float:
+        """Calculate degradation cost per kWh cycled.
+
+        If degradation_cost_per_kwh is specified, use that.
+        Otherwise calculate from battery cost: cost / (2 * lifetime_cycles)
+        Factor of 2 because each cycle = charge + discharge
+
+        Default fallback: 0.05 kr/kWh (historical value)
+        """
+        if self.degradation_cost_per_kwh is not None:
+            return self.degradation_cost_per_kwh
+
+        if self.battery_cost_nok_per_kwh is not None:
+            # Degradation cost = battery cost / total kWh throughput over lifetime
+            # Total throughput = capacity * cycles * 2 (charge + discharge)
+            return self.battery_cost_nok_per_kwh / (2 * self.battery_lifetime_cycles)
+
+        # Fallback to historical default
+        return 0.05
+
+
+def read_battery_config_from_metadata(results_dir: str) -> dict:
+    """Read battery configuration from metadata.csv in results directory.
+
+    Args:
+        results_dir: Path to results directory
+
+    Returns:
+        Dictionary with battery_kwh and battery_kw, or empty dict if not found
+    """
+    metadata_path = Path(results_dir) / "metadata.csv"
+
+    if not metadata_path.exists():
+        return {}
+
+    try:
+        metadata = pd.read_csv(metadata_path)
+        config = {}
+
+        if 'battery_capacity_kwh' in metadata.columns:
+            config['battery_kwh'] = float(metadata['battery_capacity_kwh'].iloc[0])
+
+        if 'battery_power_kw' in metadata.columns:
+            config['battery_kw'] = float(metadata['battery_power_kw'].iloc[0])
+
+        return config
+    except Exception as e:
+        print(f"Warning: Could not read metadata.csv: {e}")
+        return {}
 
 
 def load_data(results_dir: str):
@@ -91,19 +198,26 @@ def calculate_power_tariff_cost(monthly_peak_kw: float) -> float:
     return total_cost
 
 
-def calculate_4category_breakdown(data: pd.DataFrame, battery_kwh: float = 30, battery_kw: float = 15):
-    """Calculate simplified 4-category revenue breakdown"""
-    TARIFF_PEAK = 0.296
-    TARIFF_OFFPEAK = 0.176
-    ENERGY_TAX = 0.1791
-    FEED_IN_PREMIUM = 0.04
-    DEGRADATION_COST_PER_KWH = 0.05
+def calculate_4category_breakdown(data: pd.DataFrame, config: BatteryConfig):
+    """Calculate simplified 4-category revenue breakdown.
+
+    Args:
+        data: DataFrame with trajectory data
+        config: BatteryConfig with battery dimensions and economic parameters
+
+    Returns:
+        Tuple of (breakdown dict, total_savings, reference scenario, monthly peaks ref, context metrics)
+    """
+    # Extract config values
+    battery_kwh = config.battery_kwh
+    battery_kw = config.battery_kw
+    degradation_cost = config.get_degradation_cost()
 
     data["hour"] = data["timestamp"].dt.hour
     data["weekday"] = data["timestamp"].dt.weekday
     data["month"] = data["timestamp"].dt.to_period("M")
     data["is_peak"] = ((data["weekday"] < 5) & (data["hour"] >= 6) & (data["hour"] < 22))
-    data["tariff"] = np.where(data["is_peak"], TARIFF_PEAK, TARIFF_OFFPEAK)
+    data["tariff"] = np.where(data["is_peak"], config.tariff_peak, config.tariff_offpeak)
 
     ref = calculate_reference_scenario(data)
     ref["month"] = ref["timestamp"].dt.to_period("M")
@@ -117,23 +231,23 @@ def calculate_4category_breakdown(data: pd.DataFrame, battery_kwh: float = 30, b
 
     # Category 2: Reduced grid import
     import_ref_cost = (ref["P_grid_import_ref_kw"] * (ref["price_nok"] +
-                       np.where(ref["is_peak"], TARIFF_PEAK, TARIFF_OFFPEAK) + ENERGY_TAX)).sum()
-    import_with_cost = (data["P_grid_import_kw"] * (data["price_nok"] + data["tariff"] + ENERGY_TAX)).sum()
-    export_ref_revenue = (ref["P_grid_export_ref_kw"] * (ref["price_nok"] + FEED_IN_PREMIUM)).sum()
-    export_with_revenue = (data["P_grid_export_kw"] * (data["price_nok"] + FEED_IN_PREMIUM)).sum()
+                       np.where(ref["is_peak"], config.tariff_peak, config.tariff_offpeak) + config.energy_tax)).sum()
+    import_with_cost = (data["P_grid_import_kw"] * (data["price_nok"] + data["tariff"] + config.energy_tax)).sum()
+    export_ref_revenue = (ref["P_grid_export_ref_kw"] * (ref["price_nok"] + config.feed_in_premium)).sum()
+    export_with_revenue = (data["P_grid_export_kw"] * (data["price_nok"] + config.feed_in_premium)).sum()
     redusert_nettimport = (import_ref_cost - import_with_cost) - (export_ref_revenue - export_with_revenue)
 
     # Category 3: Avoided curtailment
     curtailment_ref_kwh = ref["P_curtail_ref_kw"].sum()
     curtailment_with_kwh = data["P_curtail_kw"].sum()
-    avg_export_price = data["price_nok"].mean() + FEED_IN_PREMIUM
+    avg_export_price = data["price_nok"].mean() + config.feed_in_premium
     unngatt_curtailment = (curtailment_ref_kwh - curtailment_with_kwh) * avg_export_price
 
     # Category 4: Degradation
     total_charged = data["P_charge_kw"].sum()
     total_discharged = data["P_discharge_kw"].sum()
     avg_cycled = (total_charged + total_discharged) / 2
-    batteridegradering = avg_cycled * DEGRADATION_COST_PER_KWH
+    batteridegradering = avg_cycled * degradation_cost
 
     total_savings = (effektkostnad_besparelse + redusert_nettimport +
                      unngatt_curtailment - batteridegradering)
@@ -220,7 +334,7 @@ def create_metrics_table_trace(context_metrics: dict, battery_kwh: float):
     return table
 
 
-def create_comprehensive_report(results_dir: str, battery_kwh: float = 30, battery_kw: float = 15):
+def create_comprehensive_report(results_dir: str, config: Optional[BatteryConfig] = None):
     """
     Create comprehensive report with OPTIMIZED LAYOUT:
     - Row 1: Mai - PV-produksjon, Last og Spotpris
@@ -236,15 +350,52 @@ def create_comprehensive_report(results_dir: str, battery_kwh: float = 30, batte
 
     Legends positioned INSIDE top-right of each graph (reliable, no overlap).
     Row 9-10: 2-column layout for side-by-side presentation.
+
+    Args:
+        results_dir: Path to results directory containing trajectory.csv and metadata.csv
+        config: BatteryConfig with battery dimensions and economic parameters.
+                If None, reads from metadata.csv. If dimensions still missing, raises error.
+
+    Returns:
+        Tuple of (figure, breakdown dict, total_savings, context_metrics)
     """
 
     # Load data
     print("Loading data...")
     data = load_data(results_dir)
 
+    # Read battery config from metadata if not provided
+    if config is None:
+        config = BatteryConfig()
+
+    # Try to load battery dimensions from metadata
+    metadata_config = read_battery_config_from_metadata(results_dir)
+    if metadata_config:
+        print(f"Read from metadata.csv: {metadata_config}")
+        if config.battery_kwh is None:
+            config.battery_kwh = metadata_config.get('battery_kwh')
+        if config.battery_kw is None:
+            config.battery_kw = metadata_config.get('battery_kw')
+
+    # Validate that we have battery dimensions
+    if config.battery_kwh is None or config.battery_kw is None:
+        raise ValueError(
+            "Battery dimensions not found. Please provide BatteryConfig with "
+            "battery_kwh and battery_kw, or ensure metadata.csv exists in results_dir."
+        )
+
+    battery_kwh = config.battery_kwh
+    battery_kw = config.battery_kw
+
+    print(f"Using battery configuration: {battery_kwh} kWh / {battery_kw} kW")
+    print(f"Economic parameters:")
+    print(f"  - Peak tariff: {config.tariff_peak} kr/kWh")
+    print(f"  - Off-peak tariff: {config.tariff_offpeak} kr/kWh")
+    print(f"  - Degradation cost: {config.get_degradation_cost():.4f} kr/kWh")
+
     # Calculate breakdown and reference
     print("Calculating 4-category breakdown...")
-    breakdown, total_savings, ref, monthly_peaks_ref, context_metrics = calculate_4category_breakdown(data, battery_kwh, battery_kw)
+    breakdown, total_savings, ref, monthly_peaks_ref, context_metrics = calculate_4category_breakdown(data, config)
 
     # Get monthly peaks
     monthly_peaks_with = data.groupby(data["timestamp"].dt.to_period("M"))["P_grid_import_kw"].max()
@@ -527,12 +678,23 @@ if __name__ == "__main__":
 
     # Generate report
     results_dir = "results/yearly_2024"
-    battery_kwh = 30
-    battery_kw = 15
 
-    print(f"\nGenerating Optimized Report v6 for {battery_kwh} kWh / {battery_kw} kW battery...")
+    print(f"\nGenerating Optimized Report v7 (Dynamic Configuration)...")
     print("=" * 80)
-    fig, breakdown, total, context = create_comprehensive_report(results_dir, battery_kwh, battery_kw)
+
+    # Option 1: Automatic - reads from metadata.csv
+    # fig, breakdown, total, context = create_comprehensive_report(results_dir)
+
+    # Option 2: Manual override with custom config
+    config = BatteryConfig(
+        battery_kwh=30,  # Will be overridden by metadata.csv if it exists
+        battery_kw=15,   # Will be overridden by metadata.csv if it exists
+        # Optional: customize economic parameters
+        # tariff_peak=0.296,
+        # tariff_offpeak=0.176,
+        # degradation_cost_per_kwh=0.05,  # Or provide battery_cost_nok_per_kwh
+    )
+    fig, breakdown, total, context = create_comprehensive_report(results_dir, config)
 
     # Print breakdown
     print("\n=== KOSTNADSFORDELING (4 KATEGORIER) ===")
@@ -549,7 +711,7 @@ if __name__ == "__main__":
     print(f"{'Kapasitetsfaktor':.<45} {context['capacity_factor']:>10.1f} %")
 
     # Save interactive HTML
-    output_file = f"{results_dir}/plotly_optimized_v6.html"
+    output_file = f"{results_dir}/plotly_optimized_v7.html"
     fig.write_html(output_file)
     print(f"\n✅ Interactive report saved to: {output_file}")
     print("=" * 80)

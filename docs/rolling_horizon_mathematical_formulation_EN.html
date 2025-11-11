@@ -1,0 +1,1598 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Rolling Horizon Mathematical Formulation</title>
+  <style>
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+  </style>
+  <script
+  src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js"
+  type="text/javascript"></script>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Rolling Horizon Mathematical Formulation</h1>
+</header>
+<h1
+id="mathematical-formulation-24-hour-rolling-horizon-optimization-model">Mathematical
+Formulation: 24-Hour Rolling Horizon Optimization Model</h1>
+<p><strong>Documentation for battery optimization rolling horizon
+optimizer</strong></p>
+<p>Based on the implementation in
+<code>battery_optimization/core/rolling_horizon_optimizer.py</code></p>
+<hr />
+<h2 id="scqa-introduction">SCQA INTRODUCTION</h2>
+<p><strong>Situation</strong>: Rolling horizon optimization is a
+strategic approach for battery management where the system continuously
+re-optimizes over a 24-hour horizon based on spot price forecasts, solar
+production, and consumption patterns.</p>
+<p><strong>Complication</strong>: Battery management under uncertainty
+requires simultaneous optimization of three conflicting objectives:
+minimize energy costs (arbitrage), reduce power tariffs (peak shaving),
+and limit battery degradation (lifetime). Incorrect balancing leads to
+either suboptimal revenues or accelerated battery wear.</p>
+<p><strong>Question</strong>: How is the mathematical optimization
+problem formulated to balance economic gain and degradation over a
+24-hour horizon with 15-minute resolution?</p>
+<p><strong>Answer (MAIN MESSAGE)</strong>:</p>
+<p>A linear program (LP) with 1067 variables minimizes total cost <span
+class="math inline">\(J = J_{\text{energy}} + J_{\text{degradation}} +
+J_{\text{tariff}}\)</span> through optimization of battery
+charging/discharging <span class="math inline">\(P_{\text{charge},t},
+P_{\text{discharge},t}\)</span> over 96 timesteps (<span
+class="math inline">\(T = 96\)</span>, <span
+class="math inline">\(\Delta t = 0.25\)</span> hours), subject to energy
+balance, battery dynamics, degradation conditions (LFP dual-mode: cyclic
+vs calendar), and progressive power tariff structure with 10 Lnett
+brackets. The solver (HiGHS) solves the problem in 0.5-2 seconds and
+returns optimal control action <span
+class="math inline">\(P_{\text{battery}}^{\text{setpoint}}\)</span> for
+the next timestep.</p>
+<hr />
+<h2 id="main-message-the-complete-optimization-problem">MAIN MESSAGE:
+THE COMPLETE OPTIMIZATION PROBLEM</h2>
+<p>Minimizes total cost over 24-hour horizon (<span
+class="math inline">\(T = 96\)</span> timesteps, <span
+class="math inline">\(\Delta t = 0.25\)</span> hours):</p>
+<p><span class="math display">\[
+\boxed{
+\begin{aligned}
+\min_{P, E, DP, z} \quad J = &amp;\sum_{t=0}^{T-1} \Bigg[
+c_{\text{import},t} P_{\text{grid},t}^{\text{import}} \Delta t -
+c_{\text{export},t} P_{\text{grid},t}^{\text{export}} \Delta t \\
+&amp;\quad + c_{\text{deg}}^{\text{percent}} DP_{\text{total},t} + 0.01
+P_{\text{curtail},t} \Bigg] \\
+&amp;+ \sum_{i=0}^{N_{\text{trinn}}-1} c_{\text{trinn},i} z_i -
+c_{\text{baseline}}^{\text{tariff}}
+\end{aligned}
+}
+\]</span></p>
+<p>Subject to the following constraints:</p>
+<p><strong>Energy Balance</strong> (<span
+class="math inline">\(T\)</span> constraints): <span
+class="math display">\[
+P_{\text{grid},t}^{\text{import}} - P_{\text{grid},t}^{\text{export}} -
+P_{\text{charge},t} + P_{\text{discharge},t} - P_{\text{curtail},t} =
+\text{Load}_t - \text{PV}_t
+\]</span></p>
+<p><strong>Battery Dynamics</strong> (<span
+class="math inline">\(T\)</span> constraints): <span
+class="math display">\[
+E_{\text{battery},t} = E_{\text{battery},t-1} + \left(
+\eta_{\text{charge}} P_{\text{charge},t-1} -
+\frac{P_{\text{discharge},t-1}}{\eta_{\text{discharge}}} \right) \Delta
+t, \quad E_{\text{battery},0} = E_{\text{initial}}
+\]</span></p>
+<p><strong>Degradation - Dual-Mode LFP</strong> (<span
+class="math inline">\(5T\)</span> constraints): <span
+class="math display">\[
+\begin{aligned}
+DP_{\text{cyc},t} &amp;= \rho_{\text{constant}} \cdot
+\text{DOD}_{\text{abs},t}, \quad \text{DOD}_{\text{abs},t} =
+\frac{E_{\Delta,t}^{+} + E_{\Delta,t}^{-}}{E_{\text{nom}}} \\
+DP_{\text{total},t} &amp;\geq \max\left(DP_{\text{cyc},t},
+dp_{\text{cal}}^{\text{timestep}}\right)
+\end{aligned}
+\]</span></p>
+<p><strong>Progressive Power Tariff</strong> (<span
+class="math inline">\(1 + N_{\text{trinn}}\)</span> constraints): <span
+class="math display">\[
+P_{\text{peak}}^{\text{new}} = \sum_{i=0}^{N_{\text{trinn}}-1}
+p_{\text{trinn},i} z_i, \quad P_{\text{grid},t}^{\text{import}} \leq
+P_{\text{peak}}^{\text{new}}, \quad z_i \leq z_{i-1}
+\]</span></p>
+<p><strong>Variable Constraints</strong>: - <span
+class="math inline">\(P_{\text{charge},t}, P_{\text{discharge},t} \in
+[0, P_{\text{max}}]\)</span> - <span
+class="math inline">\(P_{\text{grid},t}^{\text{import}},
+P_{\text{grid},t}^{\text{export}} \in [0, 70 \text{ kW}]\)</span> -
+<span class="math inline">\(E_{\text{battery},t} \in [\text{SOC}_{\min}
+E_{\text{nom}}, \text{SOC}_{\max} E_{\text{nom}}]\)</span> - <span
+class="math inline">\(z_i \in [0, 1]\)</span></p>
+<p><strong>Interpretation</strong>: This LP problem with 1067 variables
+and 778 constraints balances three cost components: energy cost
+(arbitrage through import/export optimization), degradation cost (LFP
+dual-mode: maximum of cyclic and calendar wear), and power tariff
+(progressive 10-bracket Lnett structure). The HiGHS solver solves the
+problem in 0.5-2 seconds and returns optimal battery control for the
+next timestep: <span
+class="math inline">\(P_{\text{battery}}^{\text{setpoint}} =
+P_{\text{charge},0} - P_{\text{discharge},0}\)</span> [kW].</p>
+<hr />
+<h2 id="detailed-analysis">DETAILED ANALYSIS</h2>
+<h3 id="chapter-1-objective-function---three-cost-components">Chapter 1:
+Objective Function - Three Cost Components</h3>
+<p>The objective function minimizes total cost over the 24-hour horizon
+through three components:</p>
+<p><span class="math display">\[
+\boxed{
+J = J_{\text{energy}} + J_{\text{degradation}} + J_{\text{tariff}} +
+J_{\text{curtailment}}
+}
+\]</span></p>
+<h4 id="energy-cost---importexport-arbitrage">1.1 Energy Cost -
+Import/Export Arbitrage</h4>
+<p><strong>Energy cost</strong> represents net cost for grid import
+minus revenue from grid export:</p>
+<p><span class="math display">\[
+J_{\text{energy}} = \sum_{t=0}^{T-1} \left[ c_{\text{import},t}
+P_{\text{grid},t}^{\text{import}} \Delta t - c_{\text{export},t}
+P_{\text{grid},t}^{\text{export}} \Delta t \right]
+\]</span></p>
+<p><strong>Import cost</strong> consists of three components:</p>
+<p><span class="math display">\[
+c_{\text{import},t} = p_{\text{spot},t} + c_{\text{energy},t} +
+c_{\text{tax},t}
+\]</span></p>
+<p>where: - <span class="math inline">\(p_{\text{spot},t}\)</span>:
+Nordpool spot price [NOK/kWh] - <span
+class="math inline">\(c_{\text{energy},t}\)</span>: Energy tariff, 0.296
+NOK/kWh peak hours (Mon-Fri 06:00-22:00), 0.176 NOK/kWh off-peak - <span
+class="math inline">\(c_{\text{tax},t} = 0.15\)</span> NOK/kWh:
+Consumption tax</p>
+<p><strong>Export revenue</strong>:</p>
+<p><span class="math display">\[
+c_{\text{export},t} = p_{\text{spot},t} + 0.04 \text{ NOK/kWh}
+\]</span></p>
+<p>The export premium of 0.04 NOK/kWh compensates for grid tariff
+asymmetry.</p>
+<h4 id="degradation-cost---battery-wear">1.2 Degradation Cost - Battery
+Wear</h4>
+<p><strong>Degradation cost</strong> measures the value reduction of the
+battery due to wear:</p>
+<p><span class="math display">\[
+J_{\text{degradation}} = \sum_{t=0}^{T-1}
+c_{\text{deg}}^{\text{percent}} DP_{\text{total},t}
+\]</span></p>
+<p><strong>Degradation cost per percentage point</strong>:</p>
+<p><span class="math display">\[
+c_{\text{deg}}^{\text{percent}} = \frac{c_{\text{battery}} \times
+E_{\text{nom}}}{\text{EOL}_{\text{deg}}}
+\]</span></p>
+<p>With standard values: - <span
+class="math inline">\(c_{\text{battery}} = 3054\)</span> NOK/kWh
+(battery cost) - <span class="math inline">\(E_{\text{nom}} =
+80\)</span> kWh (battery capacity) - <span
+class="math inline">\(\text{EOL}_{\text{deg}} = 20\%\)</span>
+(end-of-life degradation)</p>
+<p>gives <span class="math inline">\(c_{\text{deg}}^{\text{percent}} =
+(3054 \times 80) / 20 = 12{,}216\)</span> NOK/%.</p>
+<p><strong>Economic interpretation</strong>: Each percentage point of
+degradation costs 12,216 NOK. At 0.01% degradation per day (typical at
+low activity): 122 NOK/day degradation cost. Annual degradation with
+calendar aging only: <span class="math inline">\(0.714\% \times 12{,}216
+= 8{,}722\)</span> NOK/year.</p>
+<h4 id="power-tariff-cost---progressive-bracket-structure">1.3 Power
+Tariff Cost - Progressive Bracket Structure</h4>
+<p><strong>Power tariff cost</strong> uses progressive LP approach
+(analogous to tax models):</p>
+<p><span class="math display">\[
+J_{\text{tariff}} = \sum_{i=0}^{N_{\text{trinn}}-1} c_{\text{trinn},i}
+z_i - c_{\text{baseline}}^{\text{tariff}}
+\]</span></p>
+<p>where: - <span class="math inline">\(c_{\text{trinn},i}\)</span>:
+Incremental cost per bracket [NOK/kWh/month] - <span
+class="math inline">\(z_i \in [0, 1]\)</span>: Fill level for bracket
+<span class="math inline">\(i\)</span> (<span class="math inline">\(z_i
+= 0\)</span>: empty, <span class="math inline">\(z_i = 1\)</span>: full)
+- <span
+class="math inline">\(c_{\text{baseline}}^{\text{tariff}}\)</span>:
+Current tariff cost (baseline)</p>
+<p>The objective function minimizes <strong>marginal increase</strong>
+in power tariff beyond baseline.</p>
+<p><strong>Lnett commercial tariff structure</strong>:</p>
+<table>
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 8%" />
+<col style="width: 7%" />
+<col style="width: 24%" />
+<col style="width: 18%" />
+<col style="width: 30%" />
+</colgroup>
+<thead>
+<tr>
+<th>Bracket <span class="math inline">\(i\)</span></th>
+<th>From [kW]</th>
+<th>To [kW]</th>
+<th>Width <span class="math inline">\(p_{\text{trinn},i}\)</span>
+[kW]</th>
+<th>Cumulative [NOK/month]</th>
+<th>Incr. <span class="math inline">\(c_{\text{trinn},i}\)</span>
+[NOK/month]</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>0</td>
+<td>2</td>
+<td>2</td>
+<td>136</td>
+<td>136</td>
+</tr>
+<tr>
+<td>1</td>
+<td>2</td>
+<td>5</td>
+<td>3</td>
+<td>232</td>
+<td>96</td>
+</tr>
+<tr>
+<td>2</td>
+<td>5</td>
+<td>10</td>
+<td>5</td>
+<td>372</td>
+<td>140</td>
+</tr>
+<tr>
+<td>3</td>
+<td>10</td>
+<td>15</td>
+<td>5</td>
+<td>572</td>
+<td>200</td>
+</tr>
+<tr>
+<td>4</td>
+<td>15</td>
+<td>20</td>
+<td>5</td>
+<td>772</td>
+<td>200</td>
+</tr>
+<tr>
+<td>5</td>
+<td>20</td>
+<td>25</td>
+<td>5</td>
+<td>972</td>
+<td>200</td>
+</tr>
+<tr>
+<td>6</td>
+<td>25</td>
+<td>50</td>
+<td>25</td>
+<td>1772</td>
+<td>800</td>
+</tr>
+<tr>
+<td>7</td>
+<td>50</td>
+<td>75</td>
+<td>25</td>
+<td>2572</td>
+<td>800</td>
+</tr>
+<tr>
+<td>8</td>
+<td>75</td>
+<td>100</td>
+<td>25</td>
+<td>3372</td>
+<td>800</td>
+</tr>
+<tr>
+<td>9</td>
+<td>100+</td>
+<td>∞</td>
+<td>-</td>
+<td>5600 (@ 100 kW)</td>
+<td>2228</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example</strong>: At power peak 12 kW (<span
+class="math inline">\(z_0 = 1.0\)</span>, <span
+class="math inline">\(z_1 = 1.0\)</span>, <span
+class="math inline">\(z_2 = 1.0\)</span>, <span
+class="math inline">\(z_3 = 0.4\)</span>, rest <span
+class="math inline">\(= 0\)</span>): - Bracket 0: <span
+class="math inline">\(2 \text{ kW} \times 1.0 = 2 \text{ kW}\)</span>
+contributes <span class="math inline">\(136\)</span> NOK/month - Bracket
+1: <span class="math inline">\(3 \text{ kW} \times 1.0 = 3 \text{
+kW}\)</span> contributes <span class="math inline">\(96\)</span>
+NOK/month - Bracket 2: <span class="math inline">\(5 \text{ kW} \times
+1.0 = 5 \text{ kW}\)</span> contributes <span
+class="math inline">\(140\)</span> NOK/month - Bracket 3: <span
+class="math inline">\(5 \text{ kW} \times 0.4 = 2 \text{ kW}\)</span>
+contributes <span class="math inline">\(200 \times 0.4 = 80\)</span>
+NOK/month - <strong>Total</strong>: <span
+class="math inline">\(P_{\text{peak}}^{\text{new}} = 12\)</span> kW,
+cost <span class="math inline">\(452\)</span> NOK/month</p>
+<h4 id="curtailment-penalty---avoid-unnecessary-curtailment">1.4
+Curtailment Penalty - Avoid Unnecessary Curtailment</h4>
+<p><strong>Curtailment penalty</strong> (<span
+class="math inline">\(0.01\)</span> NOK/kW) avoids unnecessary solar
+curtailment:</p>
+<p><span class="math display">\[
+J_{\text{curtailment}} = 0.01 \sum_{t=0}^{T-1} P_{\text{curtail},t}
+\]</span></p>
+<p>The penalty term ensures that the LP solver only uses curtailment
+when absolutely necessary (e.g., battery full, grid export maximal). The
+low penalty (0.01 NOK/kW) does not significantly affect economic
+optimization, but gives preference to avoid curtailment when
+alternatives exist.</p>
+<hr />
+<h3 id="chapter-2-physical-constraints---energy-and-battery">Chapter 2:
+Physical Constraints - Energy and Battery</h3>
+<h4 id="energy-balance---kirchhoffs-first-law">2.1 Energy Balance -
+Kirchhoff’s First Law</h4>
+<p>For each timestep <span class="math inline">\(t \in \{0, 1, \ldots,
+T-1\}\)</span> the energy balance must hold:</p>
+<p><span class="math display">\[
+\boxed{
+P_{\text{grid},t}^{\text{import}} - P_{\text{grid},t}^{\text{export}} -
+P_{\text{charge},t} + P_{\text{discharge},t} - P_{\text{curtail},t} =
+\text{Load}_t - \text{PV}_t
+}
+\]</span></p>
+<p><strong>Physical interpretation</strong>: - <strong>Left
+side</strong>: Available energy (grid import - grid export - battery
+charging + battery discharging - curtailment) - <strong>Right
+side</strong>: Net load (consumption - solar production)</p>
+<p><strong>Variable roles</strong>: - <span
+class="math inline">\(P_{\text{grid},t}^{\text{import}} \in [0,
+70]\)</span> kW: Import from grid - <span
+class="math inline">\(P_{\text{grid},t}^{\text{export}} \in [0,
+70]\)</span> kW: Export to grid - <span
+class="math inline">\(P_{\text{charge},t} \in [0,
+P_{\text{max}}^{\text{charge}}]\)</span> kW: Battery charging (typically
+60 kW) - <span class="math inline">\(P_{\text{discharge},t} \in [0,
+P_{\text{max}}^{\text{discharge}}]\)</span> kW: Battery discharging
+(typically 60 kW) - <span class="math inline">\(P_{\text{curtail},t}
+\geq 0\)</span> kW: Solar curtailment (only when necessary)</p>
+<p><strong>Input data</strong>: - <span
+class="math inline">\(\text{PV}_t\)</span>: Solar production [kW]
+(PVGIS/PVLib) - <span class="math inline">\(\text{Load}_t\)</span>:
+Consumption [kW] (measured/forecasted)</p>
+<h4 id="battery-dynamics---state-equation">2.2 Battery Dynamics - State
+Equation</h4>
+<p>Battery energy at the next timestep equals previous energy plus
+charging energy (with charging losses) minus discharging energy (with
+discharging losses).</p>
+<p><strong>Dynamic equation</strong> (<span
+class="math inline">\(T-1\)</span> constraints) for <span
+class="math inline">\(t \in \{1, 2, \ldots, T-1\}\)</span>:</p>
+<p><span class="math display">\[
+\boxed{
+E_{\text{battery},t} = E_{\text{battery},t-1} + \left(
+\eta_{\text{charge}} P_{\text{charge},t-1} -
+\frac{P_{\text{discharge},t-1}}{\eta_{\text{discharge}}} \right) \Delta
+t
+}
+\]</span></p>
+<p><strong>Initial condition</strong> (1 constraint):</p>
+<p><span class="math display">\[
+\boxed{
+E_{\text{battery},0} = E_{\text{initial}}
+}
+\]</span></p>
+<p><strong>Parameter values</strong>: - <span
+class="math inline">\(\eta_{\text{charge}} = \eta_{\text{discharge}} =
+0.95\)</span> (95% roundtrip efficiency per direction) - <span
+class="math inline">\(E_{\text{nom}} = 80\)</span> kWh (nominal battery
+capacity) - <span class="math inline">\(\text{SOC}_{\min} =
+0.1\)</span>, <span class="math inline">\(\text{SOC}_{\max} =
+0.9\)</span> (operational SOC limits) - <span
+class="math inline">\(E_{\text{battery},t} \in [0.1 \times 80, 0.9
+\times 80] = [8, 72]\)</span> kWh</p>
+<p><strong>Energy loss example</strong>: - Charging: When <span
+class="math inline">\(P_{\text{charge},t} = 60\)</span> kW, only <span
+class="math inline">\(0.95 \times 60 = 57\)</span> kW is stored in the
+battery (5% loss) - Discharging: To deliver <span
+class="math inline">\(P_{\text{discharge},t} = 60\)</span> kW, the
+battery must provide <span class="math inline">\((60 / 0.95) =
+63.16\)</span> kW (5% loss)</p>
+<h4 id="grid-constraints---grid-limits">2.3 Grid Constraints - Grid
+Limits</h4>
+<p>The grid limits import and export to maximum values:</p>
+<p><span class="math display">\[
+\boxed{
+P_{\text{grid}}^{\text{import}} \leq 70 \text{ kW}, \quad
+P_{\text{grid}}^{\text{export}} \leq 70 \text{ kW}
+}
+\]</span></p>
+<p>The 70 kW limit reflects inverter capacity (110 kW) × 70% rule
+(Norwegian grid standard for PV installations). Full PV production (150
+kWp) can generate 150+ kW under optimal conditions, but grid export is
+limited to 70 kW. Excess production must be stored in battery or
+curtailed.</p>
+<hr />
+<h3 id="chapter-3-degradation-model---lfp-dual-mode">Chapter 3:
+Degradation Model - LFP Dual-Mode</h3>
+<p>LFP batteries degrade primarily by the <strong>dominant
+mechanism</strong> at each time: at high cyclic activity, cyclic
+degradation dominates, at low/no activity, calendar degradation
+dominates.</p>
+<h4 id="cyclic-degradation---activity-based-wear">3.1 Cyclic Degradation
+- Activity-Based Wear</h4>
+<p>Cyclic degradation uses <strong>absolute DOD</strong> (Depth of
+Discharge) as a proxy for rainflow cycle counting:</p>
+<p><span class="math display">\[
+\boxed{
+DP_{\text{cyc},t} = \rho_{\text{constant}} \cdot
+\text{DOD}_{\text{abs},t}
+}
+\]</span></p>
+<p>where:</p>
+<p><span class="math display">\[
+\text{DOD}_{\text{abs},t} = \frac{E_{\Delta,t}^{+} +
+E_{\Delta,t}^{-}}{E_{\text{nom}}}
+\]</span></p>
+<p><strong>Degradation constant</strong>:</p>
+<p><span class="math display">\[
+\rho_{\text{constant}} =
+\frac{\text{EOL}_{\text{deg}}}{\text{cycle}_{\text{life}}^{\text{full
+DOD}}} = \frac{20\%}{5000} = 0.004 \text{ \%/cycle}
+\]</span></p>
+<p><strong>Parameter values</strong>: - <span
+class="math inline">\(\text{cycle}_{\text{life}}^{\text{full DOD}} =
+5000\)</span> cycles (100% DOD, LFP standard) - <span
+class="math inline">\(\text{EOL}_{\text{deg}} = 20\%\)</span>
+(end-of-life degradation) - <span
+class="math inline">\(\rho_{\text{constant}} = 0.004\)</span>
+%/cycle</p>
+<p><strong>Absolute energy change</strong> is implemented using LP
+decomposition:</p>
+<p><strong>Energy-delta balance</strong> for <span
+class="math inline">\(t = 0\)</span>:</p>
+<p><span class="math display">\[
+E_{\Delta,0}^{+} - E_{\Delta,0}^{-} - E_{\text{battery},0} =
+-E_{\text{initial}}
+\]</span></p>
+<p>For <span class="math inline">\(t \in \{1, 2, \ldots,
+T-1\}\)</span>:</p>
+<p><span class="math display">\[
+E_{\Delta,t}^{+} - E_{\Delta,t}^{-} - E_{\text{battery},t} +
+E_{\text{battery},t-1} = 0
+\]</span></p>
+<p>The relationship <span class="math inline">\(E_{\Delta,t}^{+} -
+E_{\Delta,t}^{-} = \Delta E_t\)</span> decomposes as: -
+<strong>Charging</strong> (<span class="math inline">\(\Delta E_t &gt;
+0\)</span>): <span class="math inline">\(E_{\Delta,t}^{+} = \Delta
+E_t\)</span>, <span class="math inline">\(E_{\Delta,t}^{-} = 0\)</span>
+- <strong>Discharging</strong> (<span class="math inline">\(\Delta E_t
+&lt; 0\)</span>): <span class="math inline">\(E_{\Delta,t}^{+} =
+0\)</span>, <span class="math inline">\(E_{\Delta,t}^{-} = |\Delta
+E_t|\)</span></p>
+<p><strong>DOD definition</strong> (<span
+class="math inline">\(T\)</span> constraints):</p>
+<p><span class="math display">\[
+\boxed{
+\text{DOD}_{\text{abs},t} = \frac{E_{\Delta,t}^{+} +
+E_{\Delta,t}^{-}}{E_{\text{nom}}}
+}
+\]</span></p>
+<p><strong>Equivalent full cycles over 24 hours</strong>:</p>
+<p><span class="math display">\[
+\text{Cycles}_{\text{eq}}^{24h} = \sum_{t=0}^{T-1}
+\text{DOD}_{\text{abs},t}
+\]</span></p>
+<p><strong>Example</strong>: At 0.5 equivalent cycles per day (typical
+with active arbitrage): - Cyclic degradation: <span
+class="math inline">\(0.5 \times 0.004\% = 0.002\%\)</span> per day -
+Annual degradation: <span class="math inline">\(0.002\% \times 365 =
+0.73\%\)</span> per year - Lifetime: <span class="math inline">\(20\% /
+0.73\% = 27.4\)</span> years</p>
+<h4 id="calendar-degradation---time-based-wear">3.2 Calendar Degradation
+- Time-Based Wear</h4>
+<p>Calendar degradation per timestep:</p>
+<p><span class="math display">\[
+\boxed{
+dp_{\text{cal}}^{\text{timestep}} =
+\frac{\text{EOL}_{\text{deg}}}{\text{cal}_{\text{life}} \times 365
+\times 24} \times \Delta t
+}
+\]</span></p>
+<p><strong>Parameter values</strong>: - <span
+class="math inline">\(\text{cal}_{\text{life}} = 28\)</span> years
+(calendar life, LFP standard) - <span
+class="math inline">\(\text{EOL}_{\text{deg}} = 20\%\)</span>
+(end-of-life degradation) - <span class="math inline">\(\Delta t =
+0.25\)</span> hours (15-minute timestep)</p>
+<p><span class="math display">\[
+dp_{\text{cal}}^{\text{timestep}} = \frac{20\%}{28 \times 365 \times 24}
+\times 0.25 = 0.000204 \text{ \%/timestep}
+\]</span></p>
+<p><strong>Annual calendar degradation</strong>: <span
+class="math inline">\(20\% / 28 \text{ years} = 0.714\%\)</span> per
+year.</p>
+<p><strong>Calendar cost per day</strong> (with no activity): -
+Degradation: <span class="math inline">\(0.000204\% \times 96 \text{
+timesteps} = 0.0196\%\)</span> per day - Cost: <span
+class="math inline">\(0.0196\% \times 12{,}216 \text{ NOK/\%} =
+239\)</span> NOK/day - Annual: <span class="math inline">\(239 \text{
+NOK/day} \times 365 = 87{,}235\)</span> NOK/year</p>
+<h4 id="total-degradation---maximum-function">3.3 Total Degradation -
+Maximum Function</h4>
+<p>Total degradation is the <strong>maximum</strong> of cyclic and
+calendar degradation at each timestep:</p>
+<p><span class="math display">\[
+\boxed{
+DP_{\text{total},t} = \max\left(DP_{\text{cyc},t},
+dp_{\text{cal}}^{\text{timestep}}\right)
+}
+\]</span></p>
+<p><strong>LP implementation</strong> uses two inequality
+constraints:</p>
+<p><strong>Constraint 1</strong>: Total ≥ Cyclic (<span
+class="math inline">\(T\)</span> constraints):</p>
+<p><span class="math display">\[
+DP_{\text{total},t} \geq DP_{\text{cyc},t}
+\]</span></p>
+<p><strong>Constraint 2</strong>: Total ≥ Calendar (<span
+class="math inline">\(T\)</span> constraints):</p>
+<p><span class="math display">\[
+DP_{\text{total},t} \geq dp_{\text{cal}}^{\text{timestep}}
+\]</span></p>
+<p>The LP solver will automatically set <span
+class="math inline">\(DP_{\text{total},t}\)</span> to the
+<strong>minimum value</strong> that satisfies both constraints, i.e.,
+the <strong>maximum value</strong> of the two.</p>
+<p><strong>Degradation cost</strong>:</p>
+<p><span class="math display">\[
+C_{\text{degradation}} = \sum_{t=0}^{T-1}
+c_{\text{deg}}^{\text{percent}} \cdot DP_{\text{total},t}
+\]</span></p>
+<p>With <span class="math inline">\(c_{\text{deg}}^{\text{percent}} =
+12{,}216\)</span> NOK/%.</p>
+<p><strong>Physical interpretation</strong>: At high activity (e.g.,
+<span class="math inline">\(\text{DOD}_{\text{abs},t} = 0.1\)</span>,
+i.e., 10% DOD): - Cyclic: <span class="math inline">\(DP_{\text{cyc},t}
+= 0.004\% \times 0.1 = 0.0004\%\)</span> (0.04% per timestep) -
+Calendar: <span class="math inline">\(dp_{\text{cal}}^{\text{timestep}}
+= 0.000204\%\)</span> - Total: <span
+class="math inline">\(DP_{\text{total},t} = \max(0.0004\%, 0.000204\%) =
+0.0004\%\)</span> (cyclic dominates)</p>
+<p>At no activity (<span class="math inline">\(\text{DOD}_{\text{abs},t}
+= 0\)</span>): - Cyclic: <span class="math inline">\(DP_{\text{cyc},t} =
+0\%\)</span> - Calendar: <span
+class="math inline">\(dp_{\text{cal}}^{\text{timestep}} =
+0.000204\%\)</span> - Total: <span
+class="math inline">\(DP_{\text{total},t} = \max(0\%, 0.000204\%) =
+0.000204\%\)</span> (calendar dominates)</p>
+<hr />
+<h3 id="chapter-4-economic-model---progressive-power-tariff">Chapter 4:
+Economic Model - Progressive Power Tariff</h3>
+<p>The power tariff is implemented as a <strong>progressive bracket
+structure</strong> (analogous to tax models). Continuous variables <span
+class="math inline">\(z_i \in [0, 1]\)</span> represent the fill level
+for bracket <span class="math inline">\(i\)</span>, with progressive
+activation <span class="math inline">\(z_i \leq z_{i-1}\)</span>
+ensuring that lower brackets are filled first.</p>
+<h4 id="power-peak-definition">4.1 Power Peak Definition</h4>
+<p>The new monthly power peak is defined as the sum of filled bracket
+widths:</p>
+<p><span class="math display">\[
+\boxed{
+P_{\text{peak}}^{\text{new}} = \sum_{i=0}^{N_{\text{trinn}}-1}
+p_{\text{trinn},i} z_i
+}
+\]</span></p>
+<p><strong>Lnett commercial tariff structure</strong>:</p>
+<table>
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 8%" />
+<col style="width: 7%" />
+<col style="width: 24%" />
+<col style="width: 18%" />
+<col style="width: 30%" />
+</colgroup>
+<thead>
+<tr>
+<th>Bracket <span class="math inline">\(i\)</span></th>
+<th>From [kW]</th>
+<th>To [kW]</th>
+<th>Width <span class="math inline">\(p_{\text{trinn},i}\)</span>
+[kW]</th>
+<th>Cumulative [NOK/month]</th>
+<th>Incr. <span class="math inline">\(c_{\text{trinn},i}\)</span>
+[NOK/month]</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>0</td>
+<td>2</td>
+<td>2</td>
+<td>136</td>
+<td>136</td>
+</tr>
+<tr>
+<td>1</td>
+<td>2</td>
+<td>5</td>
+<td>3</td>
+<td>232</td>
+<td>96</td>
+</tr>
+<tr>
+<td>2</td>
+<td>5</td>
+<td>10</td>
+<td>5</td>
+<td>372</td>
+<td>140</td>
+</tr>
+<tr>
+<td>3</td>
+<td>10</td>
+<td>15</td>
+<td>5</td>
+<td>572</td>
+<td>200</td>
+</tr>
+<tr>
+<td>4</td>
+<td>15</td>
+<td>20</td>
+<td>5</td>
+<td>772</td>
+<td>200</td>
+</tr>
+<tr>
+<td>5</td>
+<td>20</td>
+<td>25</td>
+<td>5</td>
+<td>972</td>
+<td>200</td>
+</tr>
+<tr>
+<td>6</td>
+<td>25</td>
+<td>50</td>
+<td>25</td>
+<td>1772</td>
+<td>800</td>
+</tr>
+<tr>
+<td>7</td>
+<td>50</td>
+<td>75</td>
+<td>25</td>
+<td>2572</td>
+<td>800</td>
+</tr>
+<tr>
+<td>8</td>
+<td>75</td>
+<td>100</td>
+<td>25</td>
+<td>3372</td>
+<td>800</td>
+</tr>
+<tr>
+<td>9</td>
+<td>100+</td>
+<td>∞</td>
+<td>-</td>
+<td>5600 (@ 100 kW)</td>
+<td>2228</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example 1</strong>: Power peak 12 kW - Bracket 0: <span
+class="math inline">\(z_0 = 1.0\)</span> (full), contributes <span
+class="math inline">\(2 \times 1.0 = 2\)</span> kW, cost <span
+class="math inline">\(136\)</span> NOK/month - Bracket 1: <span
+class="math inline">\(z_1 = 1.0\)</span> (full), contributes <span
+class="math inline">\(3 \times 1.0 = 3\)</span> kW, cost <span
+class="math inline">\(96\)</span> NOK/month - Bracket 2: <span
+class="math inline">\(z_2 = 1.0\)</span> (full), contributes <span
+class="math inline">\(5 \times 1.0 = 5\)</span> kW, cost <span
+class="math inline">\(140\)</span> NOK/month - Bracket 3: <span
+class="math inline">\(z_3 = 0.4\)</span> (partial), contributes <span
+class="math inline">\(5 \times 0.4 = 2\)</span> kW, cost <span
+class="math inline">\(200 \times 0.4 = 80\)</span> NOK/month -
+<strong>Total</strong>: <span
+class="math inline">\(P_{\text{peak}}^{\text{new}} = 2 + 3 + 5 + 2 =
+12\)</span> kW, cost <span class="math inline">\(452\)</span>
+NOK/month</p>
+<p><strong>Example 2</strong>: Power peak 75 kW - Brackets 0-6: Fully
+filled (<span class="math inline">\(z_0\)</span> through <span
+class="math inline">\(z_6 = 1.0\)</span>), contribute <span
+class="math inline">\(2+3+5+5+5+5+25 = 50\)</span> kW - Bracket 7: Fully
+filled (<span class="math inline">\(z_7 = 1.0\)</span>), contributes
+<span class="math inline">\(25\)</span> kW, cost <span
+class="math inline">\(800\)</span> NOK/month - Brackets 8-9: Empty
+(<span class="math inline">\(z_8 = z_9 = 0\)</span>) -
+<strong>Total</strong>: <span
+class="math inline">\(P_{\text{peak}}^{\text{new}} = 75\)</span> kW,
+cost <span class="math inline">\(2{,}572\)</span> NOK/month</p>
+<h4 id="power-peak-tracking">4.2 Power Peak Tracking</h4>
+<p>For each timestep <span class="math inline">\(t\)</span>, the new
+power peak must be at least equal to the grid import:</p>
+<p><span class="math display">\[
+\boxed{
+P_{\text{grid},t}^{\text{import}} \leq P_{\text{peak}}^{\text{new}}
+}
+\]</span></p>
+<p>This ensures that the LP variable <span
+class="math inline">\(P_{\text{peak}}^{\text{new}}\)</span> is
+automatically set to:</p>
+<p><span class="math display">\[
+P_{\text{peak}}^{\text{new}} =
+\max\left(P_{\text{peak}}^{\text{current}}, \max_{t}
+P_{\text{grid},t}^{\text{import}}\right)
+\]</span></p>
+<p><strong>Interpretation</strong>: The power peak is the maximum of the
+current baseline (<span
+class="math inline">\(P_{\text{peak}}^{\text{current}}\)</span>) and the
+maximum grid import in the 24-hour window. The LP solver automatically
+finds the optimal balance between reducing power peak (via battery
+charging/discharging) and accepting higher power peak when the costs of
+peak shaving exceed the tariff cost.</p>
+<h4 id="ordered-bracket-activation">4.3 Ordered Bracket Activation</h4>
+<p>For <span class="math inline">\(i \in \{1, 2, \ldots,
+N_{\text{trinn}}-1\}\)</span>:</p>
+<p><span class="math display">\[
+\boxed{
+z_i \leq z_{i-1}
+}
+\]</span></p>
+<p>Higher brackets can only be filled if lower brackets are filled
+(progressive tax structure).</p>
+<p><strong>Valid solution</strong>: <span class="math inline">\(z_0 =
+1.0\)</span>, <span class="math inline">\(z_1 = 0.8\)</span>, <span
+class="math inline">\(z_2 = 0.3\)</span> (satisfies <span
+class="math inline">\(1.0 \geq 0.8 \geq 0.3\)</span>)</p>
+<p><strong>Invalid solution</strong>: <span class="math inline">\(z_0 =
+0.5\)</span>, <span class="math inline">\(z_1 = 1.0\)</span> (violates
+<span class="math inline">\(z_1 \leq z_0\)</span>)</p>
+<h4 id="progressive-tariff-cost">4.4 Progressive Tariff Cost</h4>
+<p><span class="math display">\[
+\boxed{
+C_{\text{tariff}}^{\text{progressive}} = \sum_{i=0}^{N_{\text{trinn}}-1}
+c_{\text{trinn},i} z_i
+}
+\]</span></p>
+<p><strong>Why progressive LP approach instead of MILP?</strong></p>
+<ol type="1">
+<li><strong>Fast solution time</strong>: LP solves in ~1 second vs
+potentially minutes with MILP (Mixed-Integer Linear Programming)</li>
+<li><strong>Correct optimization direction</strong>: Progressive
+approach gives correct incentive to reduce power peak</li>
+<li><strong>Sufficient accuracy</strong>: For operational control with
+frequent re-optimization (every 15-60 min), accuracy is sufficient</li>
+<li><strong>Conservative underestimation</strong>: Progressive &lt;
+step-function, but corrected in post-processing for reporting</li>
+<li><strong>Robustness</strong>: Rolling horizon re-optimizes
+continuously, so inaccuracies are quickly corrected</li>
+</ol>
+<p><strong>Objective function</strong>: Minimizes <strong>marginal
+increase</strong> in tariff cost:</p>
+<p><span class="math display">\[
+J_{\text{tariff}} = \sum_{i=0}^{N_{\text{trinn}}-1} c_{\text{trinn},i}
+z_i - c_{\text{baseline}}^{\text{tariff}}
+\]</span></p>
+<p>where <span class="math inline">\(c_{\text{baseline}}^{\text{tariff}}
+= f_{\text{tariff}}(P_{\text{peak}}^{\text{current}})\)</span> is the
+current tariff cost. This minimizes the <strong>marginal
+increase</strong> in power tariff beyond baseline.</p>
+<hr />
+<h2 id="evidence-appendices">EVIDENCE (Appendices)</h2>
+<h3 id="appendix-a-complete-parameters-and-variables">Appendix A:
+Complete Parameters and Variables</h3>
+<h4 id="a.1-indices-and-timesteps">A.1 Indices and Timesteps</h4>
+<p>The optimization problem operates over a 24-hour horizon with <span
+class="math inline">\(T = 96\)</span> timesteps (15-minute resolution)
+where <span class="math inline">\(t \in \{0, 1, \ldots, 95\}\)</span>
+and timestep size <span class="math inline">\(\Delta t = 0.25\)</span>
+hours.</p>
+<h4 id="a.2-battery-parameters">A.2 Battery Parameters</h4>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 24%" />
+<col style="width: 21%" />
+<col style="width: 21%" />
+</colgroup>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Symbol</th>
+<th>Value</th>
+<th>Unit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Nominal capacity</td>
+<td><span class="math inline">\(E_{\text{nom}}\)</span></td>
+<td>80</td>
+<td>kWh</td>
+</tr>
+<tr>
+<td>Max charging power</td>
+<td><span
+class="math inline">\(P_{\text{max}}^{\text{charge}}\)</span></td>
+<td>60</td>
+<td>kW</td>
+</tr>
+<tr>
+<td>Max discharging power</td>
+<td><span
+class="math inline">\(P_{\text{max}}^{\text{discharge}}\)</span></td>
+<td>60</td>
+<td>kW</td>
+</tr>
+<tr>
+<td>Charging efficiency</td>
+<td><span class="math inline">\(\eta_{\text{charge}}\)</span></td>
+<td>0.95</td>
+<td>-</td>
+</tr>
+<tr>
+<td>Discharging efficiency</td>
+<td><span class="math inline">\(\eta_{\text{discharge}}\)</span></td>
+<td>0.95</td>
+<td>-</td>
+</tr>
+<tr>
+<td>Roundtrip efficiency</td>
+<td><span class="math inline">\(\eta_{\text{charge}} \times
+\eta_{\text{discharge}}\)</span></td>
+<td>0.9025</td>
+<td>-</td>
+</tr>
+<tr>
+<td>Min SOC</td>
+<td><span class="math inline">\(\text{SOC}_{\min}\)</span></td>
+<td>0.1</td>
+<td>-</td>
+</tr>
+<tr>
+<td>Max SOC</td>
+<td><span class="math inline">\(\text{SOC}_{\max}\)</span></td>
+<td>0.9</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<h4 id="a.3-grid-and-tariff-parameters">A.3 Grid and Tariff
+Parameters</h4>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 24%" />
+<col style="width: 21%" />
+<col style="width: 21%" />
+</colgroup>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Symbol</th>
+<th>Value</th>
+<th>Unit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Max grid import</td>
+<td><span
+class="math inline">\(P_{\text{grid}}^{\text{import,max}}\)</span></td>
+<td>70</td>
+<td>kW</td>
+</tr>
+<tr>
+<td>Max grid export</td>
+<td><span
+class="math inline">\(P_{\text{grid}}^{\text{export,max}}\)</span></td>
+<td>70</td>
+<td>kW</td>
+</tr>
+<tr>
+<td>Energy tariff peak</td>
+<td><span
+class="math inline">\(c_{\text{energy}}^{\text{peak}}\)</span></td>
+<td>0.296</td>
+<td>NOK/kWh</td>
+</tr>
+<tr>
+<td>Energy tariff off-peak</td>
+<td><span
+class="math inline">\(c_{\text{energy}}^{\text{off-peak}}\)</span></td>
+<td>0.176</td>
+<td>NOK/kWh</td>
+</tr>
+<tr>
+<td>Consumption tax</td>
+<td><span class="math inline">\(c_{\text{tax}}\)</span></td>
+<td>0.15</td>
+<td>NOK/kWh</td>
+</tr>
+<tr>
+<td>Export premium</td>
+<td>-</td>
+<td>0.04</td>
+<td>NOK/kWh</td>
+</tr>
+<tr>
+<td>Number of power tariff brackets</td>
+<td><span class="math inline">\(N_{\text{trinn}}\)</span></td>
+<td>10</td>
+<td>-</td>
+</tr>
+<tr>
+<td>Bracket widths</td>
+<td><span class="math inline">\(p_{\text{trinn},i}\)</span></td>
+<td>2, 3, 5, 5, 5, 5, 25, 25, 25, ∞</td>
+<td>kW</td>
+</tr>
+<tr>
+<td>Incremental costs</td>
+<td><span class="math inline">\(c_{\text{trinn},i}\)</span></td>
+<td>136, 96, 140, 200, 200, 200, 800, 800, 800, 2228</td>
+<td>NOK/month</td>
+</tr>
+</tbody>
+</table>
+<h4 id="a.4-degradation-parameters-lfp-battery">A.4 Degradation
+Parameters (LFP Battery)</h4>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 24%" />
+<col style="width: 21%" />
+<col style="width: 21%" />
+</colgroup>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Symbol</th>
+<th>Value</th>
+<th>Unit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cyclic lifetime (100% DOD)</td>
+<td><span class="math inline">\(\text{cycle}_{\text{life}}^{\text{full
+DOD}}\)</span></td>
+<td>5000</td>
+<td>cycles</td>
+</tr>
+<tr>
+<td>Calendar lifetime</td>
+<td><span class="math inline">\(\text{cal}_{\text{life}}\)</span></td>
+<td>28</td>
+<td>years</td>
+</tr>
+<tr>
+<td>End-of-life degradation</td>
+<td><span class="math inline">\(\text{EOL}_{\text{deg}}\)</span></td>
+<td>20</td>
+<td>%</td>
+</tr>
+<tr>
+<td>Cyclic degradation constant</td>
+<td><span class="math inline">\(\rho_{\text{constant}}\)</span></td>
+<td>0.004</td>
+<td>%/cycle</td>
+</tr>
+<tr>
+<td>Calendar degradation per timestep</td>
+<td><span
+class="math inline">\(dp_{\text{cal}}^{\text{timestep}}\)</span></td>
+<td>0.000204</td>
+<td>%/timestep</td>
+</tr>
+<tr>
+<td>Battery cost</td>
+<td><span class="math inline">\(c_{\text{battery}}\)</span></td>
+<td>3054</td>
+<td>NOK/kWh</td>
+</tr>
+<tr>
+<td>Degradation cost per %</td>
+<td><span
+class="math inline">\(c_{\text{deg}}^{\text{percent}}\)</span></td>
+<td>12,216</td>
+<td>NOK/%</td>
+</tr>
+</tbody>
+</table>
+<h4 id="a.5-state-dependent-parameters">A.5 State-Dependent
+Parameters</h4>
+<table>
+<colgroup>
+<col style="width: 28%" />
+<col style="width: 20%" />
+<col style="width: 17%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Symbol</th>
+<th>Unit</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Initial battery energy</td>
+<td><span class="math inline">\(E_{\text{initial}}\)</span></td>
+<td>kWh</td>
+<td>Current battery energy state</td>
+</tr>
+<tr>
+<td>Current power peak</td>
+<td><span
+class="math inline">\(P_{\text{peak}}^{\text{current}}\)</span></td>
+<td>kW</td>
+<td>Monthly power peak (baseline)</td>
+</tr>
+</tbody>
+</table>
+<h4 id="a.6-time-series-inputs">A.6 Time Series Inputs</h4>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Symbol</th>
+<th>Unit</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Solar production</td>
+<td><span class="math inline">\(\text{PV}_t\)</span></td>
+<td>kW</td>
+<td>PVGIS/PVLib</td>
+</tr>
+<tr>
+<td>Consumption</td>
+<td><span class="math inline">\(\text{Load}_t\)</span></td>
+<td>kW</td>
+<td>Measured/forecasted</td>
+</tr>
+<tr>
+<td>Spot price</td>
+<td><span class="math inline">\(p_{\text{spot},t}\)</span></td>
+<td>NOK/kWh</td>
+<td>Nordpool</td>
+</tr>
+</tbody>
+</table>
+<h4 id="a.7-decision-variables---complete-list">A.7 Decision Variables -
+Complete List</h4>
+<p>The problem has a total of <span class="math inline">\(11T + 1 +
+N_{\text{trinn}} = 1057 + N_{\text{trinn}} = 1067\)</span> continuous
+variables.</p>
+<p><strong>Physical variables</strong> (<span class="math inline">\(6T =
+576\)</span> variables):</p>
+<table>
+<colgroup>
+<col style="width: 21%" />
+<col style="width: 17%" />
+<col style="width: 19%" />
+<col style="width: 14%" />
+<col style="width: 27%" />
+</colgroup>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Symbol</th>
+<th>Bounds</th>
+<th>Unit</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Charging power</td>
+<td><span class="math inline">\(P_{\text{charge},t}\)</span></td>
+<td><span class="math inline">\([0, 60]\)</span></td>
+<td>kW</td>
+<td>Battery charging</td>
+</tr>
+<tr>
+<td>Discharging power</td>
+<td><span class="math inline">\(P_{\text{discharge},t}\)</span></td>
+<td><span class="math inline">\([0, 60]\)</span></td>
+<td>kW</td>
+<td>Battery discharging</td>
+</tr>
+<tr>
+<td>Grid import</td>
+<td><span
+class="math inline">\(P_{\text{grid},t}^{\text{import}}\)</span></td>
+<td><span class="math inline">\([0, 70]\)</span></td>
+<td>kW</td>
+<td>Import from grid</td>
+</tr>
+<tr>
+<td>Grid export</td>
+<td><span
+class="math inline">\(P_{\text{grid},t}^{\text{export}}\)</span></td>
+<td><span class="math inline">\([0, 70]\)</span></td>
+<td>kW</td>
+<td>Export to grid</td>
+</tr>
+<tr>
+<td>Battery energy</td>
+<td><span class="math inline">\(E_{\text{battery},t}\)</span></td>
+<td><span class="math inline">\([8, 72]\)</span></td>
+<td>kWh</td>
+<td>Energy state</td>
+</tr>
+<tr>
+<td>Solar curtailment</td>
+<td><span class="math inline">\(P_{\text{curtail},t}\)</span></td>
+<td><span class="math inline">\([0, \infty)\)</span></td>
+<td>kW</td>
+<td>Curtailment</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Degradation variables</strong> (<span
+class="math inline">\(5T = 480\)</span> variables):</p>
+<table>
+<colgroup>
+<col style="width: 21%" />
+<col style="width: 17%" />
+<col style="width: 19%" />
+<col style="width: 14%" />
+<col style="width: 27%" />
+</colgroup>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Symbol</th>
+<th>Bounds</th>
+<th>Unit</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Positive energy change</td>
+<td><span class="math inline">\(E_{\Delta,t}^{+}\)</span></td>
+<td><span class="math inline">\([0, 80]\)</span></td>
+<td>kWh</td>
+<td>Charging (absolute)</td>
+</tr>
+<tr>
+<td>Negative energy change</td>
+<td><span class="math inline">\(E_{\Delta,t}^{-}\)</span></td>
+<td><span class="math inline">\([0, 80]\)</span></td>
+<td>kWh</td>
+<td>Discharging (absolute)</td>
+</tr>
+<tr>
+<td>Absolute DOD</td>
+<td><span class="math inline">\(\text{DOD}_{\text{abs},t}\)</span></td>
+<td><span class="math inline">\([0, 1]\)</span></td>
+<td>-</td>
+<td>Depth of discharge (normalized)</td>
+</tr>
+<tr>
+<td>Cyclic degradation</td>
+<td><span class="math inline">\(DP_{\text{cyc},t}\)</span></td>
+<td><span class="math inline">\([0, 20]\)</span></td>
+<td>%</td>
+<td>Activity-based wear</td>
+</tr>
+<tr>
+<td>Total degradation</td>
+<td><span class="math inline">\(DP_{\text{total},t}\)</span></td>
+<td><span class="math inline">\([0, 20]\)</span></td>
+<td>%</td>
+<td>Maximum (cyclic, calendar)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Power tariff variables</strong> (<span
+class="math inline">\(1 + N_{\text{trinn}} = 11\)</span> variables):</p>
+<table>
+<colgroup>
+<col style="width: 21%" />
+<col style="width: 17%" />
+<col style="width: 19%" />
+<col style="width: 14%" />
+<col style="width: 27%" />
+</colgroup>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Symbol</th>
+<th>Bounds</th>
+<th>Unit</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>New power peak</td>
+<td><span
+class="math inline">\(P_{\text{peak}}^{\text{new}}\)</span></td>
+<td><span class="math inline">\([\geq
+P_{\text{peak}}^{\text{current}}]\)</span></td>
+<td>kW</td>
+<td>Monthly maximum</td>
+</tr>
+<tr>
+<td>Bracket fill level</td>
+<td><span class="math inline">\(z_i\)</span></td>
+<td><span class="math inline">\([0, 1]\)</span></td>
+<td>-</td>
+<td>Fill level for bracket <span class="math inline">\(i\)</span></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="appendix-b-lp-standard-form-and-implementation-details">Appendix
+B: LP Standard Form and Implementation Details</h3>
+<h4 id="b.1-lp-standard-form">B.1 LP Standard Form</h4>
+<p>Standard LP problem formulation:</p>
+<p><span class="math display">\[
+\begin{aligned}
+\min_{x} \quad &amp; c^T x \\
+\text{subject to} \quad &amp; A_{\text{eq}} x = b_{\text{eq}} \\
+&amp; A_{\text{ub}} x \leq b_{\text{ub}} \\
+&amp; l \leq x \leq u
+\end{aligned}
+\]</span></p>
+<p>where: - <span class="math inline">\(x \in
+\mathbb{R}^{1067}\)</span>: Vector of all decision variables - <span
+class="math inline">\(c \in \mathbb{R}^{1067}\)</span>: Objective
+function coefficients - <span class="math inline">\(A_{\text{eq}} \in
+\mathbb{R}^{481 \times 1067}\)</span>: Equality constraint matrix -
+<span class="math inline">\(b_{\text{eq}} \in \mathbb{R}^{481}\)</span>:
+Equality constraint vector - <span class="math inline">\(A_{\text{ub}}
+\in \mathbb{R}^{297 \times 1067}\)</span>: Inequality constraint matrix
+- <span class="math inline">\(b_{\text{ub}} \in
+\mathbb{R}^{297}\)</span>: Inequality constraint vector - <span
+class="math inline">\(l, u \in \mathbb{R}^{1067}\)</span>: Variable
+bounds</p>
+<h4 id="b.2-problem-size">B.2 Problem Size</h4>
+<p><strong>With <span class="math inline">\(T = 96\)</span> timesteps,
+<span class="math inline">\(N_{\text{trinn}} = 10\)</span>
+brackets</strong>:</p>
+<table>
+<colgroup>
+<col style="width: 34%" />
+<col style="width: 25%" />
+<col style="width: 40%" />
+</colgroup>
+<thead>
+<tr>
+<th>Component</th>
+<th>Number</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Variables</strong></td>
+<td><span class="math inline">\(11T + 1 + N_{\text{trinn}} =
+1067\)</span></td>
+<td>Decision variables</td>
+</tr>
+<tr>
+<td><strong>Equality constraints</strong></td>
+<td><span class="math inline">\(5T + 1 = 481\)</span></td>
+<td>Energy balance, battery dynamics, degradation</td>
+</tr>
+<tr>
+<td><strong>Inequality constraints</strong></td>
+<td><span class="math inline">\(3T + N_{\text{trinn}} - 1 =
+297\)</span></td>
+<td>Power peak tracking, bracket activation, max function</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Detailed breakdown - Equality constraints (<span
+class="math inline">\(5T + 1 = 481\)</span>)</strong>: - Energy balance:
+<span class="math inline">\(T = 96\)</span> constraints - Battery
+dynamics: <span class="math inline">\(T = 96\)</span> constraints
+(incl. initial condition) - Energy-delta balance: <span
+class="math inline">\(T = 96\)</span> constraints - DOD definition:
+<span class="math inline">\(T = 96\)</span> constraints - Cyclic
+degradation: <span class="math inline">\(T = 96\)</span> constraints -
+Power peak definition: <span class="math inline">\(1\)</span>
+constraint</p>
+<p><strong>Detailed breakdown - Inequality constraints (<span
+class="math inline">\(3T + N_{\text{trinn}} - 1 =
+297\)</span>)</strong>: - Power peak tracking: <span
+class="math inline">\(T = 96\)</span> constraints - Total degradation ≥
+Cyclic: <span class="math inline">\(T = 96\)</span> constraints - Total
+degradation ≥ Calendar: <span class="math inline">\(T = 96\)</span>
+constraints - Ordered bracket activation: <span
+class="math inline">\(N_{\text{trinn}} - 1 = 9\)</span> constraints</p>
+<h4 id="b.3-sparse-matrix-structure">B.3 Sparse Matrix Structure</h4>
+<p>The constraint matrix is <strong>very sparse</strong> (~1% non-zero
+elements): - <span class="math inline">\(A_{\text{eq}}\)</span> (<span
+class="math inline">\(481 \times 1067\)</span>): ~2000 non-zero elements
+(~0.4%) - <span class="math inline">\(A_{\text{ub}}\)</span> (<span
+class="math inline">\(297 \times 1067\)</span>): ~300 non-zero elements
+(~0.1%)</p>
+<p>The HiGHS solver efficiently exploits this sparsity through sparse
+matrix representations and algorithms.</p>
+<h4 id="b.4-solution-method">B.4 Solution Method</h4>
+<p><strong>Solver</strong>: HiGHS via
+<code>scipy.optimize.linprog</code></p>
+<p>HiGHS uses a <strong>hybrid adaptive algorithm</strong> that
+automatically chooses between: 1. <strong>Simplex method</strong>:
+Efficient for small-medium problems, guarantees optimal solution 2.
+<strong>Interior-point method</strong>: Scales better for large
+problems, faster for some problem types 3. <strong>Crossover</strong>:
+Converts interior-point solution to simplex basis for robustness</p>
+<p><strong>Performance</strong>: - Solution time: 0.5-2 seconds per
+24-hour optimization - Memory usage: ~50 MB - Re-optimization: Every
+15-60 minutes - Horizon: 24 hours (perfect foresight)</p>
+<p><strong>Implementation files</strong>: -
+<code>battery_optimization/core/rolling_horizon_optimizer.py</code> -
+<code>battery_optimization/configs/rolling_horizon_realtime.yaml</code>
+- <code>battery_optimization/main.py</code></p>
+<p><strong>Design documents</strong>: -
+<code>OPERATIONAL_OPTIMIZATION_STRATEGY.md</code> -
+<code>PEAK_PENALTY_METHODOLOGY.md</code> -
+<code>COMMERCIAL_SYSTEMS_COMPARISON.md</code></p>
+<p><strong>Standard config</strong>: - 80 kWh battery @ 60 kW - 90.25%
+roundtrip efficiency - SOC [10%, 90%] - 5000 cycle life @ 100% DOD - 28
+year calendar life - 20% EOL degradation - 70 kW grid limits - Lnett
+commercial tariff structure</p>
+<hr />
+<h3 id="appendix-c-output-and-key-metrics">Appendix C: Output and Key
+Metrics</h3>
+<h4 id="c.1-optimal-control-action">C.1 Optimal Control Action</h4>
+<p><strong>Optimal control action</strong> (next timestep):</p>
+<p><span class="math display">\[
+\boxed{
+P_{\text{battery}}^{\text{setpoint}} = P_{\text{charge},0} -
+P_{\text{discharge},0} \quad \text{[kW]}
+}
+\]</span></p>
+<p><strong>Interpretation</strong>: - Positive value (<span
+class="math inline">\(P_{\text{battery}}^{\text{setpoint}} &gt;
+0\)</span>): Charge the battery - Negative value (<span
+class="math inline">\(P_{\text{battery}}^{\text{setpoint}} &lt;
+0\)</span>): Discharge the battery - Zero (<span
+class="math inline">\(P_{\text{battery}}^{\text{setpoint}} =
+0\)</span>): Idle mode (no activity)</p>
+<h4 id="c.2-economic-key-figures-24-hour-aggregation">C.2 Economic Key
+Figures (24-hour aggregation)</h4>
+<p><strong>Energy cost</strong>:</p>
+<p><span class="math display">\[
+C_{\text{energy}}^{24h} = \sum_{t=0}^{95} \left[ c_{\text{import},t}
+P_{\text{grid},t}^{\text{import}} - c_{\text{export},t}
+P_{\text{grid},t}^{\text{export}} \right] \Delta t
+\]</span></p>
+<p><strong>Degradation cost</strong>:</p>
+<p><span class="math display">\[
+C_{\text{degradation}}^{24h} = \sum_{t=0}^{95}
+c_{\text{deg}}^{\text{percent}} DP_{\text{total},t}
+\]</span></p>
+<p><strong>Marginal tariff cost</strong>:</p>
+<p><span class="math display">\[
+\Delta C_{\text{tariff}}^{\text{progressive}} =
+\sum_{i=0}^{N_{\text{trinn}}-1} c_{\text{trinn},i} z_i -
+c_{\text{baseline}}^{\text{tariff}}
+\]</span></p>
+<h4 id="c.3-degradation-metrics">C.3 Degradation Metrics</h4>
+<p><strong>Equivalent full cycles</strong>:</p>
+<p><span class="math display">\[
+\boxed{
+\text{Cycles}_{\text{eq}}^{24h} = \sum_{t=0}^{95}
+\text{DOD}_{\text{abs},t}
+}
+\]</span></p>
+<p><strong>Total degradation</strong>:</p>
+<p><span class="math display">\[
+DP_{\text{total}}^{24h} = \sum_{t=0}^{95} DP_{\text{total},t} \quad [\%]
+\]</span></p>
+<p><strong>Annual degradation rate (extrapolated)</strong>:</p>
+<p><span class="math display">\[
+\text{Degradation rate}_{\text{annual}} = DP_{\text{total}}^{24h} \times
+365 \quad [\%/\text{year}]
+\]</span></p>
+<p><strong>Estimated lifetime</strong>:</p>
+<p><span class="math display">\[
+\text{Estimated lifetime} =
+\frac{\text{EOL}_{\text{deg}}}{\text{Degradation rate}_{\text{annual}}}
+\quad [\text{years}]
+\]</span></p>
+<p><strong>Example calculation</strong>: - At <span
+class="math inline">\(DP_{\text{total}}^{24h} = 0.002\%\)</span> per day
+(typical with moderate activity) - Annual degradation: <span
+class="math inline">\(0.002\% \times 365 = 0.73\%\)</span> per year -
+Estimated lifetime: <span class="math inline">\(20\% / 0.73\% =
+27.4\)</span> years</p>
+<hr />
+<p><strong>Documentation generated:</strong> 2025-01-09 <strong>Source
+code:</strong>
+<code>battery_optimization/core/rolling_horizon_optimizer.py:1-784</code>
+<strong>Author:</strong> Klaus (Battery Optimization System)</p>
+</body>
+</html>

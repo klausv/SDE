@@ -1,0 +1,2 @@
+battery_capacity_kwh,battery_power_kw,horizon_hours,window_type,window_hours,resolution,year,timesteps,weeks_optimized,timestamp
+30,15,24,weekly,168,PT15M,2024,0,209,2025-11-11T01:59:28.457206
