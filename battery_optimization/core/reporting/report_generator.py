@@ -3,18 +3,16 @@ Base class for report generation with shared utilities.
 
 This module provides an abstract base class that all report generators
 inherit from, ensuring consistent structure and reusable utilities.
+
+Note: Matplotlib dependencies have been moved to MatplotlibReportGenerator.
+      For new reports, use PlotlyReportGenerator instead.
 """
 
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-import matplotlib.pyplot as plt
-import matplotlib
 from .result_models import SimulationResult
-
-# Use non-interactive backend for headless environments
-matplotlib.use('Agg')
 
 
 class ReportGenerator(ABC):
@@ -31,19 +29,26 @@ class ReportGenerator(ABC):
         report_timestamp: Timestamp when report generation started
     """
 
-    def __init__(self, results: List[SimulationResult], output_dir: Path):
+    def __init__(
+        self,
+        results: List[SimulationResult],
+        output_dir: Path,
+        theme: str = 'light'
+    ):
         """
         Initialize report generator.
 
         Args:
             results: One or more SimulationResult instances to analyze
             output_dir: Base directory for outputs (e.g., Path('results'))
+            theme: Visual theme for reports ('light' or 'dark')
         """
         if not isinstance(results, list):
             results = [results]
 
         self.results = results
         self.output_dir = Path(output_dir)
+        self.theme = theme
         self.figures: List[Path] = []
         self.report_timestamp = datetime.now()
 
@@ -68,44 +73,6 @@ class ReportGenerator(ABC):
         """
         pass
 
-    def save_figure(
-        self,
-        fig: plt.Figure,
-        filename: str,
-        subdir: str = '',
-        dpi: int = 150,
-        bbox_inches: str = 'tight'
-    ) -> Path:
-        """
-        Save matplotlib figure with consistent path structure.
-
-        Args:
-            fig: Matplotlib figure to save
-            filename: Output filename (with extension, e.g., 'plot.png')
-            subdir: Optional subdirectory within figures/ (e.g., 'breakeven')
-            dpi: Resolution for raster formats
-            bbox_inches: Bounding box adjustment ('tight' removes whitespace)
-
-        Returns:
-            Path to saved figure file
-        """
-        # Create figure subdirectory if specified
-        if subdir:
-            fig_dir = self.output_dir / 'figures' / subdir
-        else:
-            fig_dir = self.output_dir / 'figures'
-
-        fig_dir.mkdir(parents=True, exist_ok=True)
-
-        # Save figure
-        filepath = fig_dir / filename
-        fig.savefig(filepath, dpi=dpi, bbox_inches=bbox_inches)
-        plt.close(fig)
-
-        # Track for index generation
-        self.figures.append(filepath)
-
-        return filepath
 
     def create_index(
         self,
@@ -195,27 +162,6 @@ class ReportGenerator(ABC):
                     f.write(f"- {point}\n")
                 f.write("\n")
 
-    def apply_standard_plot_style(self):
-        """
-        Apply consistent matplotlib style across all plots.
-
-        Call this at the beginning of report generation to ensure
-        all visualizations have consistent styling.
-        """
-        plt.style.use('seaborn-v0_8-darkgrid')
-
-        # Standard parameters
-        plt.rcParams.update({
-            'figure.figsize': (10, 6),
-            'font.size': 10,
-            'axes.titlesize': 12,
-            'axes.labelsize': 11,
-            'xtick.labelsize': 9,
-            'ytick.labelsize': 9,
-            'legend.fontsize': 9,
-            'lines.linewidth': 2,
-            'grid.alpha': 0.3
-        })
 
     def format_currency(self, value: float, currency: str = 'NOK') -> str:
         """Format currency values consistently."""
@@ -271,15 +217,21 @@ class SingleScenarioReport(ReportGenerator):
     Convenience class for reports that focus on one SimulationResult.
     """
 
-    def __init__(self, result: SimulationResult, output_dir: Path):
+    def __init__(
+        self,
+        result: SimulationResult,
+        output_dir: Path,
+        theme: str = 'light'
+    ):
         """
         Initialize single-scenario report.
 
         Args:
             result: Single SimulationResult to analyze
             output_dir: Base directory for outputs
+            theme: Visual theme for reports ('light' or 'dark')
         """
-        super().__init__([result], output_dir)
+        super().__init__([result], output_dir, theme=theme)
         self.result = result
 
 
@@ -295,7 +247,8 @@ class ComparisonReport(ReportGenerator):
         self,
         results: List[SimulationResult],
         reference_scenario: str,
-        output_dir: Path
+        output_dir: Path,
+        theme: str = 'light'
     ):
         """
         Initialize comparison report.
@@ -304,8 +257,9 @@ class ComparisonReport(ReportGenerator):
             results: List of SimulationResults to compare
             reference_scenario: Name of baseline scenario
             output_dir: Base directory for outputs
+            theme: Visual theme for reports ('light' or 'dark')
         """
-        super().__init__(results, output_dir)
+        super().__init__(results, output_dir, theme=theme)
         self.reference_scenario = reference_scenario
 
         # Validate reference exists

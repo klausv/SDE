@@ -1,17 +1,123 @@
 # Available Report Types in Battery Optimization System
 
-**Last Updated**: 2025-01-10
+**Last Updated**: 2025-01-11
+**Framework Version**: 2.0 (Factory Pattern)
 
 ## Overview
 
 The battery optimization system provides multiple types of reports and visualizations for analyzing battery performance, economics, and operational strategies. Reports are generated from simulation results and can be exported in various formats.
 
+**New in v2.0**: Reports now use the Factory pattern for dynamic discovery and instantiation. See [Using the Report Factory](#using-the-report-factory) below.
+
 ---
 
-## 📊 Report Categories
+## 🏭 Using the Report Factory
 
-### 1. Interactive HTML Reports (Plotly) ⭐ Recommended
+All modern reports are registered with `ReportFactory` for easy discovery and instantiation:
 
+```python
+from core.reporting import ReportFactory
+from pathlib import Path
+
+# List all available reports
+reports = ReportFactory.list_reports()
+print(reports)  # ['battery_operation', ...]
+
+# Get report information
+info = ReportFactory.get_report_info('battery_operation')
+print(info['docstring'])
+
+# Create report instance (no direct imports needed)
+report = ReportFactory.create(
+    'battery_operation',
+    result=simulation_result,
+    output_dir=Path('results/yearly_2024'),
+    period='3weeks'
+)
+
+# Generate report
+output_path = report.generate()
+print(f"Report saved to: {output_path}")
+```
+
+**Benefits**:
+- ✅ No need to import specific report classes
+- ✅ CLI integration: `python -m reporting generate <report_name> ...`
+- ✅ Dynamic plugin support (future)
+- ✅ Automated report discovery
+
+---
+
+## 📊 Registered Reports (Factory)
+
+### 1. Battery Operation Report (`battery_operation`) ⭐ NEW
+
+**Factory Name**: `'battery_operation'`
+**Location**: `core/reporting/battery_operation_report.py`
+**Type**: Interactive HTML (Plotly)
+
+**Description**: Comprehensive battery operation visualization with configurable time periods (3 weeks, 1 month, 3 months, custom range). Consolidates multiple matplotlib visualization scripts into a unified Plotly report.
+
+**Time Periods**:
+- `3weeks` - 21-day detailed view
+- `1month` - 30-day monthly analysis
+- `3months` - 90-day quarterly overview
+- `custom` - User-defined date range
+
+**Visualizations** (6 rows × 2 columns):
+1. **Battery State of Charge** + **Curtailed Power**
+2. **Battery Power Flow** + **C-Rate Indicator**
+3. **Grid Power Flow** + **Tariff Zones**
+4. **Spot Price** + **Solar Production**
+5. **Cost Components** + **Cumulative Cost**
+6. **Daily Metrics Table** + **Weekly Aggregates Table**
+
+**Usage (Factory)**:
+```python
+from core.reporting import ReportFactory
+from pathlib import Path
+
+# Load simulation result (from trajectory.csv)
+result = SimulationResult.from_directory(Path('results/yearly_2024'))
+
+# Create report using factory
+report = ReportFactory.create(
+    'battery_operation',
+    result=result,
+    output_dir=Path('results/yearly_2024'),
+    period='3weeks',  # or '1month', '3months', 'custom'
+    start_date='2024-06-01',  # optional, for custom period
+    end_date='2024-06-21',    # optional, for custom period
+    export_png=False          # optional, requires kaleido
+)
+
+# Generate report
+output_path = report.generate()
+# → results/yearly_2024/reports/battery_operation_3weeks.html
+```
+
+**Usage (Direct)**:
+```python
+from core.reporting import BatteryOperationReport
+report = BatteryOperationReport(result, output_dir, period='3weeks')
+report.generate()
+```
+
+**Features**:
+- ✅ Fully interactive (zoom, pan, hover tooltips)
+- ✅ Norsk Solkraft branded theme
+- ✅ Configurable time periods
+- ✅ Auto-detects battery dimensions from metadata.csv
+- ✅ Optional PNG export
+- ✅ WCAG AA accessibility compliance
+
+**Output**: `battery_operation_{period}.html` (~2-8 MB depending on period)
+
+---
+
+### 2. Yearly Comprehensive Report (Plotly) ⭐ Recommended
+
+**Factory Name**: Not yet registered (Refactoring 4 pending)
 **Location**: `scripts/visualization/plotly_yearly_report_v6_optimized.py`
 
 **Description**: Comprehensive interactive yearly report with 11 consolidated visualizations using Plotly. Features Norsk Solkraft branded theme with professional styling.
