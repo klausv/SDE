@@ -100,6 +100,67 @@ class YearlyModeConfig:
 
 
 @dataclass
+class DimensioningConfig:
+    """
+    Configuration for battery dimensioning analysis.
+
+    Defines grid search ranges, economic parameters, and Powell refinement settings
+    for finding optimal battery size.
+    """
+    # Grid search ranges (start, stop, step)
+    energy_range_kwh: tuple[float, float, float] = (20.0, 201.0, 30.0)
+    power_range_kw: tuple[float, float, float] = (10.0, 101.0, 15.0)
+
+    # Powell method refinement
+    enable_powell_refinement: bool = True
+    powell_energy_bounds_kwh: tuple[float, float] = (5.0, 210.0)
+    powell_power_bounds_kw: tuple[float, float] = (5.0, 105.0)
+    powell_max_iterations: int = 50
+    powell_tolerance_nok: float = 100.0
+
+    # Economic parameters
+    discount_rate: float = 0.05
+    project_years: int = 15
+    battery_cost_per_kwh: float = 5000.0
+
+    # Analysis parameters
+    year: int = 2024
+    resolution: str = 'PT60M'
+
+    def validate(self) -> None:
+        """
+        Validate dimensioning configuration parameters.
+
+        Raises:
+            ValueError: If configuration is invalid
+        """
+        # Validate ranges
+        if self.energy_range_kwh[0] >= self.energy_range_kwh[1]:
+            raise ValueError("Energy range: start must be < stop")
+        if self.energy_range_kwh[2] <= 0:
+            raise ValueError("Energy range: step must be positive")
+
+        if self.power_range_kw[0] >= self.power_range_kw[1]:
+            raise ValueError("Power range: start must be < stop")
+        if self.power_range_kw[2] <= 0:
+            raise ValueError("Power range: step must be positive")
+
+        # Validate Powell bounds
+        if self.powell_energy_bounds_kwh[0] >= self.powell_energy_bounds_kwh[1]:
+            raise ValueError("Powell energy bounds: min must be < max")
+        if self.powell_power_bounds_kw[0] >= self.powell_power_bounds_kw[1]:
+            raise ValueError("Powell power bounds: min must be < max")
+
+        # Validate economic parameters
+        if not (0 < self.discount_rate < 1):
+            raise ValueError("Discount rate must be between 0 and 1")
+        if self.project_years <= 0:
+            raise ValueError("Project years must be positive")
+        if self.battery_cost_per_kwh <= 0:
+            raise ValueError("Battery cost must be positive")
+
+
+@dataclass
 class SimulationPeriodConfig:
     """Time period for simulation."""
     start_date: str = "2024-01-01"
@@ -142,6 +203,9 @@ class SimulationConfig:
     rolling_horizon: RollingHorizonModeConfig = field(default_factory=RollingHorizonModeConfig)
     monthly: MonthlyModeConfig = field(default_factory=MonthlyModeConfig)
     yearly: YearlyModeConfig = field(default_factory=YearlyModeConfig)
+
+    # Dimensioning configuration (optional)
+    dimensioning: Optional[DimensioningConfig] = None
 
     # Output settings
     output_dir: str = "results"
@@ -238,6 +302,24 @@ class SimulationConfig:
                     weeks=yearly_dict.get('weeks', 52),
                 )
 
+        # Parse dimensioning configuration
+        if 'dimensioning' in config_dict:
+            dim_dict = config_dict['dimensioning']
+            config.dimensioning = DimensioningConfig(
+                energy_range_kwh=tuple(dim_dict.get('energy_range_kwh', [20.0, 201.0, 30.0])),
+                power_range_kw=tuple(dim_dict.get('power_range_kw', [10.0, 101.0, 15.0])),
+                enable_powell_refinement=dim_dict.get('enable_powell_refinement', True),
+                powell_energy_bounds_kwh=tuple(dim_dict.get('powell_energy_bounds_kwh', [5.0, 210.0])),
+                powell_power_bounds_kw=tuple(dim_dict.get('powell_power_bounds_kw', [5.0, 105.0])),
+                powell_max_iterations=dim_dict.get('powell_max_iterations', 50),
+                powell_tolerance_nok=dim_dict.get('powell_tolerance_nok', 100.0),
+                discount_rate=dim_dict.get('discount_rate', 0.05),
+                project_years=dim_dict.get('project_years', 15),
+                battery_cost_per_kwh=dim_dict.get('battery_cost_per_kwh', 5000.0),
+                year=dim_dict.get('year', 2024),
+                resolution=dim_dict.get('resolution', 'PT60M'),
+            )
+
         return config
 
     def to_yaml(self, yaml_path: Union[str, Path]) -> None:
@@ -288,6 +370,23 @@ class SimulationConfig:
             'save_trajectory': self.save_trajectory,
             'save_plots': self.save_plots,
         }
+
+        # Add dimensioning configuration if present
+        if self.dimensioning is not None:
+            config_dict['dimensioning'] = {
+                'energy_range_kwh': list(self.dimensioning.energy_range_kwh),
+                'power_range_kw': list(self.dimensioning.power_range_kw),
+                'enable_powell_refinement': self.dimensioning.enable_powell_refinement,
+                'powell_energy_bounds_kwh': list(self.dimensioning.powell_energy_bounds_kwh),
+                'powell_power_bounds_kw': list(self.dimensioning.powell_power_bounds_kw),
+                'powell_max_iterations': self.dimensioning.powell_max_iterations,
+                'powell_tolerance_nok': self.dimensioning.powell_tolerance_nok,
+                'discount_rate': self.dimensioning.discount_rate,
+                'project_years': self.dimensioning.project_years,
+                'battery_cost_per_kwh': self.dimensioning.battery_cost_per_kwh,
+                'year': self.dimensioning.year,
+                'resolution': self.dimensioning.resolution,
+            }
 
         with open(yaml_path, 'w') as f:
             yaml.dump(config_dict, f, default_flow_style=False, sort_keys=False)

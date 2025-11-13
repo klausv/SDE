@@ -44,6 +44,15 @@ class ConsumptionConfig:
     base_load_kw: float = 20.0
     peak_load_kw: float = 50.0
 
+    # Consumption pattern parameters (for generated profiles)
+    base_multiplier: float = 0.6
+    weekday_business_multiplier: float = 1.8
+    evening_multiplier: float = 1.3
+    business_hours_start: int = 6
+    business_hours_end: int = 18
+    evening_hours_start: int = 18
+    evening_hours_end: int = 22
+
 
 @dataclass
 class DegradationConfig:
@@ -271,3 +280,47 @@ def set_global_legacy_config(sim_config: SimulationConfig) -> None:
 
 # Alias for backward compatibility
 config = get_global_legacy_config()
+
+
+def generate_consumption_profile(
+    timestamps: "pd.DatetimeIndex",
+    consumption_config: ConsumptionConfig
+) -> "np.ndarray":
+    """
+    Generate consumption profile from pattern parameters.
+
+    Creates a commercial consumption profile based on time-of-day patterns:
+    - Base load (60% of average)
+    - Weekday business hours (180% of base)
+    - Evening hours (130% of base)
+
+    Args:
+        timestamps: DatetimeIndex for which to generate consumption
+        consumption_config: ConsumptionConfig with annual_kwh and pattern parameters
+
+    Returns:
+        Array of consumption values in kW matching timestamps length
+    """
+    import numpy as np
+
+    hours_per_year = 8760
+    avg_load = consumption_config.annual_kwh / hours_per_year
+    load = np.zeros(len(timestamps))
+
+    for i, ts in enumerate(timestamps):
+        base = avg_load * consumption_config.base_multiplier
+
+        # Weekday business hours
+        if (ts.weekday() < 5 and
+            consumption_config.business_hours_start <= ts.hour < consumption_config.business_hours_end):
+            load[i] = base * consumption_config.weekday_business_multiplier
+
+        # Evening hours
+        elif (consumption_config.evening_hours_start <= ts.hour < consumption_config.evening_hours_end):
+            load[i] = base * consumption_config.evening_multiplier
+
+        # Off-peak hours
+        else:
+            load[i] = base
+
+    return load

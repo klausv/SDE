@@ -1,6 +1,6 @@
 {
   "analysis_metadata": {
-    "timestamp": "2025-11-13T01:18:56.589880",
+    "timestamp": "2025-11-13T01:58:54.249988",
     "resolution": "PT60M",
     "horizon_hours": 24,
     "year": 2024,
@@ -28,17 +28,17 @@
     "best_npv_nok": -30191.440169111986
   },
   "powell_refinement": {
-    "optimal_E_nom_kwh": 5.000001942753897,
+    "optimal_E_nom_kwh": 20.0,
     "optimal_P_max_kw": 25.0,
-    "optimal_npv_nok": -1324.1111624712983,
-    "improvement_over_grid_nok": 28867.329006640688,
-    "improvement_percent": 95.61428287271318
+    "optimal_npv_nok": -30191.440169111986,
+    "improvement_over_grid_nok": 0.0,
+    "improvement_percent": 0.0
   },
   "economic_metrics": {
-    "c_rate": 4.999998057246858,
-    "payback_years": 10.960156431566228,
-    "breakeven_cost_per_kwh": 4735.177870402583,
-    "annual_savings_nok": 2280.9902276364624,
-    "capex_nok": 25000.009713769487
+    "c_rate": 1.25,
+    "payback_years": 14.868746846125212,
+    "breakeven_cost_per_kwh": 3490.4279915443994,
+    "annual_savings_nok": 6725.516348814557,
+    "capex_nok": 100000.0
   }
 }
