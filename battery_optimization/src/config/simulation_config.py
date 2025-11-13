@@ -104,19 +104,20 @@ class DimensioningConfig:
     """
     Configuration for battery dimensioning analysis.
 
-    Defines grid search ranges, economic parameters, and Powell refinement settings
+    Defines grid search ranges, economic parameters, and SLSQP refinement settings
     for finding optimal battery size.
     """
     # Grid search ranges (start, stop, step)
     energy_range_kwh: tuple[float, float, float] = (20.0, 201.0, 30.0)
     power_range_kw: tuple[float, float, float] = (10.0, 101.0, 15.0)
 
-    # Powell method refinement
-    enable_powell_refinement: bool = True
-    powell_energy_bounds_kwh: tuple[float, float] = (5.0, 210.0)
-    powell_power_bounds_kw: tuple[float, float] = (5.0, 105.0)
-    powell_max_iterations: int = 50
-    powell_tolerance_nok: float = 100.0
+    # SLSQP method refinement (replaces Powell)
+    enable_slsqp_refinement: bool = True
+    slsqp_energy_bounds_kwh: tuple[float, float] = (5.0, 210.0)
+    slsqp_power_bounds_kw: tuple[float, float] = (5.0, 105.0)
+    slsqp_max_iterations: int = 50
+    slsqp_tolerance_nok: float = 100.0
+    slsqp_c_rate_max: float = 3.0  # Maximum C-rate constraint
 
     # Economic parameters
     discount_rate: float = 0.05
@@ -145,11 +146,11 @@ class DimensioningConfig:
         if self.power_range_kw[2] <= 0:
             raise ValueError("Power range: step must be positive")
 
-        # Validate Powell bounds
-        if self.powell_energy_bounds_kwh[0] >= self.powell_energy_bounds_kwh[1]:
-            raise ValueError("Powell energy bounds: min must be < max")
-        if self.powell_power_bounds_kw[0] >= self.powell_power_bounds_kw[1]:
-            raise ValueError("Powell power bounds: min must be < max")
+        # Validate SLSQP bounds
+        if self.slsqp_energy_bounds_kwh[0] >= self.slsqp_energy_bounds_kwh[1]:
+            raise ValueError("SLSQP energy bounds: min must be < max")
+        if self.slsqp_power_bounds_kw[0] >= self.slsqp_power_bounds_kw[1]:
+            raise ValueError("SLSQP power bounds: min must be < max")
 
         # Validate economic parameters
         if not (0 < self.discount_rate < 1):
@@ -308,11 +309,12 @@ class SimulationConfig:
             config.dimensioning = DimensioningConfig(
                 energy_range_kwh=tuple(dim_dict.get('energy_range_kwh', [20.0, 201.0, 30.0])),
                 power_range_kw=tuple(dim_dict.get('power_range_kw', [10.0, 101.0, 15.0])),
-                enable_powell_refinement=dim_dict.get('enable_powell_refinement', True),
-                powell_energy_bounds_kwh=tuple(dim_dict.get('powell_energy_bounds_kwh', [5.0, 210.0])),
-                powell_power_bounds_kw=tuple(dim_dict.get('powell_power_bounds_kw', [5.0, 105.0])),
-                powell_max_iterations=dim_dict.get('powell_max_iterations', 50),
-                powell_tolerance_nok=dim_dict.get('powell_tolerance_nok', 100.0),
+                enable_slsqp_refinement=dim_dict.get('enable_slsqp_refinement', True),
+                slsqp_energy_bounds_kwh=tuple(dim_dict.get('slsqp_energy_bounds_kwh', [5.0, 210.0])),
+                slsqp_power_bounds_kw=tuple(dim_dict.get('slsqp_power_bounds_kw', [5.0, 105.0])),
+                slsqp_max_iterations=dim_dict.get('slsqp_max_iterations', 50),
+                slsqp_tolerance_nok=dim_dict.get('slsqp_tolerance_nok', 100.0),
+                slsqp_c_rate_max=dim_dict.get('slsqp_c_rate_max', 3.0),
                 discount_rate=dim_dict.get('discount_rate', 0.05),
                 project_years=dim_dict.get('project_years', 15),
                 battery_cost_per_kwh=dim_dict.get('battery_cost_per_kwh', 5000.0),
@@ -376,11 +378,12 @@ class SimulationConfig:
             config_dict['dimensioning'] = {
                 'energy_range_kwh': list(self.dimensioning.energy_range_kwh),
                 'power_range_kw': list(self.dimensioning.power_range_kw),
-                'enable_powell_refinement': self.dimensioning.enable_powell_refinement,
-                'powell_energy_bounds_kwh': list(self.dimensioning.powell_energy_bounds_kwh),
-                'powell_power_bounds_kw': list(self.dimensioning.powell_power_bounds_kw),
-                'powell_max_iterations': self.dimensioning.powell_max_iterations,
-                'powell_tolerance_nok': self.dimensioning.powell_tolerance_nok,
+                'enable_slsqp_refinement': self.dimensioning.enable_slsqp_refinement,
+                'slsqp_energy_bounds_kwh': list(self.dimensioning.slsqp_energy_bounds_kwh),
+                'slsqp_power_bounds_kw': list(self.dimensioning.slsqp_power_bounds_kw),
+                'slsqp_max_iterations': self.dimensioning.slsqp_max_iterations,
+                'slsqp_tolerance_nok': self.dimensioning.slsqp_tolerance_nok,
+                'slsqp_c_rate_max': self.dimensioning.slsqp_c_rate_max,
                 'discount_rate': self.dimensioning.discount_rate,
                 'project_years': self.dimensioning.project_years,
                 'battery_cost_per_kwh': self.dimensioning.battery_cost_per_kwh,

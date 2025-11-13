@@ -1,0 +1,100 @@
+════════════════════════════════════════════════════════════════════════════════
+                    BATTERIDIMENSJONERING - GRID SEARCH RAPPORT
+════════════════════════════════════════════════════════════════════════════════
+
+SIMULERINGSOPPSETT:
+─────────────────────────────────────────────────────────────────────────────────
+  • Optimeringsmodus: Daglig rullerende horisont (24 timer)
+  • Tidsoppløsning: 1 time (PT60M)
+  • Simuleringsperiode: 2024 (365 dager)
+  • Årlig forbruk: 70 000 kWh (56 280 kWh faktisk)
+  • Årlig PV-produksjon: 127 280 kWh
+  • Netttilknytningsgrense: 70 kW
+  • Diskontrate: 5%
+  • Prosjektlevetid: 15 år
+  • Batterikostnad: 5 000 NOK/kWh
+
+BASELINE (UTEN BATTERI):
+─────────────────────────────────────────────────────────────────────────────────
+  • Årlig nettokostnad: -23 981 NOK (nettoinntekt fra PV-overskudd)
+  • System selger mer strøm enn det kjøper
+
+GRID SEARCH PARAMETERE:
+─────────────────────────────────────────────────────────────────────────────────
+  • Batterikapasitet (E_nom): 20 - 200 kWh (7 punkter, steg: 30 kWh)
+  • Batterieffekt (P_max): 10 - 100 kW (7 punkter, steg: 15 kW)
+  • Totalt antall kombinasjoner: 49
+
+════════════════════════════════════════════════════════════════════════════════
+                             TOP 10 KONFIGURASJONER
+════════════════════════════════════════════════════════════════════════════════
+
+Rang  E_nom   P_max   Årlige       CAPEX        NPV         Tilbakebetaling
+      (kWh)   (kW)    besparelser  (NOK)        (NOK)       (år)
+────────────────────────────────────────────────────────────────────────────────
+ 1.   20      25-100  6 726        100 000      -30 191     14.9 år
+ 2.   20      10      6 311        100 000      -34 498     15.8 år  
+ 3.   50      55-100  11 842       250 000      -127 084    21.1 år
+ 4.   50      40      11 836       250 000      -127 149    21.1 år
+ 5.   50      25      11 289       250 000      -132 823    22.1 år
+ 6.   50      10      9 489        250 000      -151 504    26.3 år
+ 7.   80      70-100  15 624       400 000      -237 829    25.6 år
+ 8.   80      55      15 478       400 000      -239 343    25.8 år
+ 9.   80      40      14 859       400 000      -245 772    26.9 år
+10.   80      25      13 718       400 000      -257 610    29.2 år
+
+════════════════════════════════════════════════════════════════════════════════
+                            BESTE KONFIGURASJON (GRID)
+════════════════════════════════════════════════════════════════════════════════
+
+  Batterikapasitet:       20 kWh
+  Batterieffekt:          25-100 kW (alle gir samme NPV)
+  C-rate:                 1.25 - 5.0
+  
+  Årlige besparelser:     6 726 NOK
+  CAPEX:                  100 000 NOK
+  NPV (15 år):            -30 191 NOK
+  
+  Tilbakebetalingstid:    14.9 år
+  Break-even kostnad:     ~3 400 NOK/kWh
+
+════════════════════════════════════════════════════════════════════════════════
+                            NØKKELOBSERVASJONER
+════════════════════════════════════════════════════════════════════════════════
+
+✓ ENERGIKAPASITET:
+  • Mindre batterier (20 kWh) gir best NPV
+  • Økende kapasitet gir økende besparelser MEN ikke nok til å dekke CAPEX
+  • Optimal størrelse er minimal for å redusere investeringskostnad
+
+✓ EFFEKT (C-RATE):
+  • Effekt har liten påvirkning når kapasiteten er liten (20 kWh)
+  • Alle effektnivåer 25-100 kW gir identisk NPV for 20 kWh batteri
+  • Dette antyder at arbitrasje og peak shaving er begrenset av kapasitet, ikke effekt
+
+✓ LØNNSOMHET:
+  • INGEN konfigurasjon gir positiv NPV med dagens batterikostnader (5 000 NOK/kWh)
+  • Break-even pris: ~3 400 NOK/kWh for beste konfigurasjon
+  • Krevd prisreduksjon: ~32% for å nå break-even
+
+✓ FORBRUKSPROFIL (70 000 kWh/år):
+  • Lavt forbruk sammenlignet med PV-produksjon (127 MWh)
+  • Stort overskudd eksporteres til nett
+  • Begrenset potensial for selvforbruksoptimering
+  • Arbitrasje er hovedverdien, ikke selvforbruk
+
+════════════════════════════════════════════════════════════════════════════════
+                              KONKLUSJON
+════════════════════════════════════════════════════════════════════════════════
+
+Med 70 000 kWh årlig forbruk og 127 MWh PV-produksjon er batteriet IKKE
+økonomisk lønnsomt med dagens kostnader. Best case (20 kWh batteri) gir:
+
+  • -30 191 NOK NPV (tap)
+  • 14.9 års tilbakebetalingstid (lenger enn 15 års levetid)
+  • Krever 32% prisreduksjon for break-even
+
+Systemet er dimensjonert for eksport, ikke selvforbruk, noe som begrenser
+batteriets nytteverdi til arbitrasje og peak shaving.
+
+════════════════════════════════════════════════════════════════════════════════

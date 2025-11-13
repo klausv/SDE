@@ -1,5 +1,5 @@
 """
-Battery Sizing Optimization using Hybrid Grid Search + Powell Method
+Battery Sizing Optimization using Hybrid Grid Search + SLSQP Method
 
 Optimizes battery dimensions (E_nom, P_max) to maximize NPV over 15 years
 using weekly sequential optimization (52 weeks × 168 hours).
@@ -14,7 +14,7 @@ Architecture:
 
 Method:
 1. Coarse grid search (8×8 = 64 combinations) for battery dimensions
-2. Powell's method refinement from best grid point
+2. SLSQP refinement from best grid point with proper bounds and C-rate constraints
 3. NPV surface visualization
 4. Weekly sequential simulation for accurate annual cost calculation
 
@@ -23,7 +23,7 @@ Resolution Support:
 - PT15M (15-min): 672 timesteps per week
 
 Author: Claude Code
-Date: 2025-01-10 (Updated for weekly optimization)
+Date: 2025-01-13 (Replaced Powell with SLSQP)
 """
 
 import numpy as np
@@ -553,21 +553,23 @@ class BatterySizingOptimizer:
             'best_npv': best_npv
         }
 
-    def powell_refinement(self, x0, bounds):
+    def slsqp_refinement(self, x0, bounds, c_rate_max=3.0):
         """
-        Refine solution using Powell's method
+        Refine solution using SLSQP with proper bounds and C-rate constraints
 
         Args:
             x0: Starting point [E_nom, P_max]
             bounds: [(E_min, E_max), (P_min, P_max)]
+            c_rate_max: Maximum allowed C-rate (P_max/E_nom ratio)
 
         Returns:
             dict with 'optimal_E', 'optimal_P', 'optimal_npv'
         """
         print("\n" + "="*70)
-        print("Phase 2: Powell's Method Refinement")
+        print("Phase 2: SLSQP Refinement (with C-rate constraints)")
         print("="*70)
         print(f"Starting point: E={x0[0]:.1f} kWh, P={x0[1]:.1f} kW")
+        print(f"C-rate constraint: P_max/E_nom ≤ {c_rate_max:.1f}")
 
         def objective(x):
             """Objective function for minimization (negative NPV)"""
@@ -575,13 +577,23 @@ class BatterySizingOptimizer:
             npv = self.evaluate_npv(E_nom, P_max, verbose=False)
             return -npv  # Minimize negative NPV = maximize NPV
 
+        def c_rate_constraint(x):
+            """Constraint: P_max/E_nom <= c_rate_max (reformulated as P_max - c_rate_max * E_nom <= 0)"""
+            E_nom, P_max = x[0], x[1]
+            return c_rate_max * E_nom - P_max  # >= 0 constraint
+
+        constraints = [
+            {'type': 'ineq', 'fun': c_rate_constraint}
+        ]
+
         start_time = time.time()
 
         result = minimize(
             objective,
             x0=x0,
-            method='Powell',
+            method='SLSQP',
             bounds=bounds,
+            constraints=constraints,
             options={
                 'maxiter': 50,
                 'ftol': 100,  # Tolerance in NOK
@@ -595,8 +607,9 @@ class BatterySizingOptimizer:
         optimal_P = result.x[1]
         optimal_npv = -result.fun
 
-        print(f"✓ Powell refinement complete in {elapsed/60:.1f} minutes")
+        print(f"✓ SLSQP refinement complete in {elapsed/60:.1f} minutes")
         print(f"  Optimal: E={optimal_E:.1f} kWh, P={optimal_P:.1f} kW → NPV={optimal_npv:,.0f} NOK")
+        print(f"  C-rate: {optimal_P/optimal_E:.2f}")
         print(f"  Evaluations: {result.nfev}")
         print(f"  Message: {result.message}")
 
@@ -609,13 +622,13 @@ class BatterySizingOptimizer:
             'iterations': result.nfev
         }
 
-    def visualize_npv_surface(self, grid_results, powell_result, output_dir='results', export_png=False):
+    def visualize_npv_surface(self, grid_results, slsqp_result, output_dir='results', export_png=False):
         """
         Create interactive NPV surface visualizations using Plotly.
 
         Args:
             grid_results: Results from grid_search_coarse
-            powell_result: Results from powell_refinement
+            slsqp_result: Results from slsqp_refinement
             output_dir: Directory to save plots
             export_png: If True, also export static PNG images (requires kaleido)
         """
@@ -638,8 +651,8 @@ class BatterySizingOptimizer:
             npv_grid=npv_grid,
             grid_best_E=grid_results['best_E'],
             grid_best_P=grid_results['best_P'],
-            powell_optimal_E=powell_result['optimal_E'],
-            powell_optimal_P=powell_result['optimal_P']
+            powell_optimal_E=slsqp_result['optimal_E'],
+            powell_optimal_P=slsqp_result['optimal_P']
         )
 
         export_plotly_figures(
@@ -655,9 +668,9 @@ class BatterySizingOptimizer:
             E_grid=E_grid,
             P_grid=P_grid,
             npv_grid=npv_grid,
-            powell_optimal_E=powell_result['optimal_E'],
-            powell_optimal_P=powell_result['optimal_P'],
-            powell_optimal_npv=powell_result['optimal_npv']
+            powell_optimal_E=slsqp_result['optimal_E'],
+            powell_optimal_P=slsqp_result['optimal_P'],
+            powell_optimal_npv=slsqp_result['optimal_npv']
         )
 
         export_plotly_figures(
@@ -669,13 +682,13 @@ class BatterySizingOptimizer:
 
         print("\n✓ Interactive NPV visualizations complete!")
 
-    def visualize_breakeven_costs(self, grid_results, powell_result, output_dir='results', export_png=False):
+    def visualize_breakeven_costs(self, grid_results, slsqp_result, output_dir='results', export_png=False):
         """
         Create interactive break-even cost visualizations using Plotly.
 
         Args:
             grid_results: Results from grid_search_coarse (must include 'breakeven_grid')
-            powell_result: Results from powell_refinement
+            slsqp_result: Results from slsqp_refinement
             output_dir: Directory to save plots
             export_png: If True, also export static PNG images (requires kaleido)
         """
@@ -691,8 +704,8 @@ class BatterySizingOptimizer:
         breakeven_grid = grid_results['breakeven_grid']
 
         # Find break-even at optimal point
-        P_idx = np.argmin(np.abs(P_grid - powell_result['optimal_P']))
-        E_idx = np.argmin(np.abs(E_grid - powell_result['optimal_E']))
+        P_idx = np.argmin(np.abs(P_grid - slsqp_result['optimal_P']))
+        E_idx = np.argmin(np.abs(E_grid - slsqp_result['optimal_E']))
         optimal_breakeven = breakeven_grid[E_idx, P_idx]
 
         # 1. Break-even Cost Heatmap (2D interactive)
@@ -703,8 +716,8 @@ class BatterySizingOptimizer:
             breakeven_grid=breakeven_grid,
             grid_best_E=grid_results['best_E'],
             grid_best_P=grid_results['best_P'],
-            powell_optimal_E=powell_result['optimal_E'],
-            powell_optimal_P=powell_result['optimal_P'],
+            powell_optimal_E=slsqp_result['optimal_E'],
+            powell_optimal_P=slsqp_result['optimal_P'],
             market_cost=5000,
             target_cost=2500
         )
@@ -722,8 +735,8 @@ class BatterySizingOptimizer:
             E_grid=E_grid,
             P_grid=P_grid,
             breakeven_grid=breakeven_grid,
-            powell_optimal_E=powell_result['optimal_E'],
-            powell_optimal_P=powell_result['optimal_P'],
+            powell_optimal_E=slsqp_result['optimal_E'],
+            powell_optimal_P=slsqp_result['optimal_P'],
             optimal_breakeven=optimal_breakeven
         )
 
@@ -736,7 +749,7 @@ class BatterySizingOptimizer:
 
         print("\n✓ Interactive break-even cost visualizations complete!")
 
-    def generate_report(self, grid_results, powell_result, output_dir='results'):
+    def generate_report(self, grid_results, slsqp_result, output_dir='results'):
         """Generate comprehensive optimization report"""
 
         output_path = Path(__file__).parent / output_dir
@@ -759,22 +772,22 @@ class BatterySizingOptimizer:
                 'best_P_max_kw': float(grid_results['best_P']),
                 'best_npv_nok': float(grid_results['best_npv'])
             },
-            'powell_refinement': {
-                'optimal_E_nom_kwh': float(powell_result['optimal_E']),
-                'optimal_P_max_kw': float(powell_result['optimal_P']),
-                'optimal_npv_nok': float(powell_result['optimal_npv']),
-                'success': powell_result['success'],
-                'iterations': powell_result['iterations']
+            'slsqp_refinement': {
+                'optimal_E_nom_kwh': float(slsqp_result['optimal_E']),
+                'optimal_P_max_kw': float(slsqp_result['optimal_P']),
+                'optimal_npv_nok': float(slsqp_result['optimal_npv']),
+                'success': slsqp_result['success'],
+                'iterations': slsqp_result['iterations']
             },
             'optimal_solution': {
-                'battery_capacity_kwh': float(powell_result['optimal_E']),
-                'battery_power_kw': float(powell_result['optimal_P']),
-                'npv_nok': float(powell_result['optimal_npv']),
-                'npv_million_nok': float(powell_result['optimal_npv'] / 1e6),
+                'battery_capacity_kwh': float(slsqp_result['optimal_E']),
+                'battery_power_kw': float(slsqp_result['optimal_P']),
+                'npv_nok': float(slsqp_result['optimal_npv']),
+                'npv_million_nok': float(slsqp_result['optimal_npv'] / 1e6),
                 'initial_investment_nok': float(
-                    self.config.battery.get_total_battery_system_cost(powell_result['optimal_E'], powell_result['optimal_P'])
+                    self.config.battery.get_total_battery_system_cost(slsqp_result['optimal_E'], slsqp_result['optimal_P'])
                 ),
-                'c_rate': float(powell_result['optimal_P'] / powell_result['optimal_E'])
+                'c_rate': float(slsqp_result['optimal_P'] / slsqp_result['optimal_E'])
             }
         }
 
@@ -805,7 +818,7 @@ def main():
     print("\n" + "="*70)
     print("BATTERY SIZING OPTIMIZATION - Hybrid Method")
     print("="*70)
-    print("Method: Grid Search (coarse) + Powell (refinement)")
+    print("Method: Grid Search (coarse) + SLSQP (refinement with constraints)")
     print(f"Range: E_nom ∈ [0, 200] kWh, P_max ∈ [0, 100] kW")
     print("="*70)
 
@@ -816,18 +829,19 @@ def main():
         n_P=6
     )
 
-    # Phase 2: Powell refinement
-    powell_result = optimizer.powell_refinement(
+    # Phase 2: SLSQP refinement with C-rate constraints
+    slsqp_result = optimizer.slsqp_refinement(
         x0=[grid_results['best_E'], grid_results['best_P']],
-        bounds=[(10, 200), (5, 100)]
+        bounds=[(10, 200), (5, 100)],
+        c_rate_max=3.0
     )
 
     # Phase 3: Visualization
-    optimizer.visualize_npv_surface(grid_results, powell_result)
-    optimizer.visualize_breakeven_costs(grid_results, powell_result)
+    optimizer.visualize_npv_surface(grid_results, slsqp_result)
+    optimizer.visualize_breakeven_costs(grid_results, slsqp_result)
 
     # Phase 4: Report generation
-    report = optimizer.generate_report(grid_results, powell_result)
+    report = optimizer.generate_report(grid_results, slsqp_result)
 
     # Print summary
     print("\n" + "="*70)
@@ -835,15 +849,15 @@ def main():
     print("="*70)
     print(f"Total evaluations: {optimizer.evaluation_count}")
     print(f"\nOptimal Battery Dimensions:")
-    print(f"  Capacity: {powell_result['optimal_E']:.1f} kWh")
-    print(f"  Power:    {powell_result['optimal_P']:.1f} kW")
-    print(f"  C-rate:   {powell_result['optimal_P']/powell_result['optimal_E']:.2f}")
+    print(f"  Capacity: {slsqp_result['optimal_E']:.1f} kWh")
+    print(f"  Power:    {slsqp_result['optimal_P']:.1f} kW")
+    print(f"  C-rate:   {slsqp_result['optimal_P']/slsqp_result['optimal_E']:.2f}")
     print(f"\nEconomics:")
-    print(f"  NPV: {powell_result['optimal_npv']:,.0f} NOK ({powell_result['optimal_npv']/1e6:.2f} M NOK)")
+    print(f"  NPV: {slsqp_result['optimal_npv']:,.0f} NOK ({slsqp_result['optimal_npv']/1e6:.2f} M NOK)")
     print(f"  Initial investment: {report['optimal_solution']['initial_investment_nok']:,.0f} NOK")
 
     # Calculate economics metrics
-    annual_savings = (powell_result['optimal_npv'] + report['optimal_solution']['initial_investment_nok']) / \
+    annual_savings = (slsqp_result['optimal_npv'] + report['optimal_solution']['initial_investment_nok']) / \
                      sum([1 / (1.05)**y for y in range(1, 16)])
 
     print(f"  Annual savings: {annual_savings:,.0f} NOK/year")
