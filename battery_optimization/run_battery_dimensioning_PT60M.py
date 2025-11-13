@@ -27,26 +27,33 @@ from src.optimization.weekly_optimizer import WeeklyOptimizer
 from core.price_fetcher import ENTSOEPriceFetcher
 from core.pvgis_solar import PVGISProduction
 from src.operational.state_manager import BatterySystemState
+from src.config.simulation_config import SimulationConfig
+from src.config.legacy_config_adapter import generate_consumption_profile, ConsumptionConfig
+
+# Load configuration
+config_path = Path(__file__).parent / 'configs' / 'dimensioning_2024.yaml'
+sim_config = SimulationConfig.from_yaml(config_path)
 
 print('='*70)
 print('BATTERY DIMENSIONING ANALYSIS')
 print('='*70)
-print('Optimizer: WeeklyOptimizer (FAST)')
-print('Resolution: PT60M (1 hour)')
-print('Horizon: 168 hours (1 week)')
-print('Year: 2024')
+print('Optimizer: WeeklyOptimizer (DAILY MODE)')
+print(f'Resolution: {sim_config.time_resolution}')
+print('Horizon: 24 hours (1 day)')
+print(f'Year: {sim_config.dimensioning.year}')
+print(f'Config: {config_path.name}')
 print()
 
-# Parameters
-YEAR = 2024
-RESOLUTION = 'PT60M'
-DISCOUNT_RATE = 0.05
-PROJECT_YEARS = 15
-BATTERY_COST_PER_KWH = 5000  # NOK/kWh (market price)
+# Extract configuration parameters
+YEAR = sim_config.dimensioning.year
+RESOLUTION = sim_config.time_resolution
+DISCOUNT_RATE = sim_config.dimensioning.discount_rate
+PROJECT_YEARS = sim_config.dimensioning.project_years
+BATTERY_COST_PER_KWH = sim_config.dimensioning.battery_cost_per_kwh
 
-# Battery dimension ranges
-E_NOM_RANGE = np.arange(20, 201, 30)  # kWh: 20, 50, 80, ..., 200
-P_MAX_RANGE = np.arange(10, 101, 15)  # kW: 10, 25, 40, ..., 100
+# Battery dimension ranges from config
+E_NOM_RANGE = np.arange(*sim_config.dimensioning.energy_range_kwh)
+P_MAX_RANGE = np.arange(*sim_config.dimensioning.power_range_kw)
 
 print(f'Grid search dimensions:')
 print(f'  E_nom: {len(E_NOM_RANGE)} points from {E_NOM_RANGE[0]} to {E_NOM_RANGE[-1]} kWh')
@@ -56,6 +63,10 @@ print()
 
 # Load data
 print('Loading data...')
+print(f'  Price data: {sim_config.data_sources.prices_file}')
+print(f'  Production data: {sim_config.data_sources.production_file}')
+print(f'  Consumption data: {sim_config.data_sources.consumption_file}')
+
 fetcher = ENTSOEPriceFetcher(resolution=RESOLUTION)
 prices_series = fetcher.fetch_prices(year=YEAR, area='NO2', resolution=RESOLUTION)
 prices_df = prices_series.to_frame('price_nok_per_kwh')
@@ -78,19 +89,19 @@ for i, ts in enumerate(timestamps):
     if len(matching) > 0:
         pv_production[i] = matching['pv_power_kw'].values[0]
 
-# Simple load profile
-annual_kwh = 300000
-hours_per_year = 8760
-avg_load = annual_kwh / hours_per_year
-load = np.zeros(len(timestamps))
-for i, ts in enumerate(timestamps):
-    base = avg_load * 0.6
-    if ts.weekday() < 5 and 6 <= ts.hour < 18:
-        load[i] = base * 1.8
-    elif 18 <= ts.hour < 22:
-        load[i] = base * 1.3
-    else:
-        load[i] = base
+# Generate consumption profile using config parameters
+consumption_config = ConsumptionConfig(
+    annual_kwh=70000,  # User requirement: 70 000 kWh
+    profile_type="commercial",
+    base_multiplier=0.6,
+    weekday_business_multiplier=1.8,
+    evening_multiplier=1.3,
+    business_hours_start=6,
+    business_hours_end=18,
+    evening_hours_start=18,
+    evening_hours_end=22
+)
+load = generate_consumption_profile(timestamps, consumption_config)
 
 print(f'Data loaded:')
 print(f'  Timesteps: {len(timestamps)}')
@@ -102,31 +113,31 @@ print()
 # Baseline cost (no battery) - run optimizer with 0 kW, 0 kWh battery
 print('Calculating baseline cost (no battery scenario)...')
 
-weekly_timesteps = 168  # 1 week @ hourly
+daily_timesteps = 24  # 1 day @ hourly
 n_timesteps = len(timestamps)
-n_weeks = n_timesteps // weekly_timesteps
+n_days = n_timesteps // daily_timesteps
 
 # Create optimizer with negligible battery (0.01 kW, 0.01 kWh - effectively disabled)
 # Note: Using tiny battery instead of 0.0 due to validation requirements
 baseline_optimizer = WeeklyOptimizer(
     battery_kwh=0.01,  # Negligible capacity (economic impact < 0.5 NOK/year)
     battery_kw=0.01,   # Negligible power
-    battery_efficiency=0.90,
-    min_soc_percent=10.0,
-    max_soc_percent=90.0,
-    resolution='PT60M',
-    horizon_hours=168,
+    battery_efficiency=sim_config.battery.efficiency,
+    min_soc_percent=sim_config.battery.min_soc_percent,
+    max_soc_percent=sim_config.battery.max_soc_percent,
+    resolution=RESOLUTION,
+    horizon_hours=24,  # 24-hour horizon
     use_global_config=True
 )
 
-# Run weekly optimization for full year with NO battery
+# Run daily optimization for full year with NO battery
 baseline_cost = 0.0
 baseline_state = BatterySystemState()
 
-print(f'  Running baseline optimization (52 weeks)...')
-for week in range(n_weeks):
-    t_start = week * weekly_timesteps
-    t_end = min(t_start + weekly_timesteps, n_timesteps)
+print(f'  Running baseline optimization (365 days)...')
+for day in range(n_days):
+    t_start = day * daily_timesteps
+    t_end = min(t_start + daily_timesteps, n_timesteps)
 
     result = baseline_optimizer.optimize(
         timestamps=timestamps[t_start:t_end],
@@ -137,25 +148,25 @@ for week in range(n_weeks):
     )
 
     if not result.success:
-        raise RuntimeError(f"Baseline optimization failed at week {week}: {result.message}")
+        raise RuntimeError(f"Baseline optimization failed at day {day}: {result.message}")
 
     baseline_cost += result.objective_value
 
-    # Update state for next week (though battery is 0, still track state)
+    # Update state for next day (though battery is 0, still track state)
     baseline_state.update_from_measurement(
         timestamp=timestamps[t_end - 1],
         soc_kwh=0.0,  # No battery
         grid_import_power_kw=result.P_grid_import[-1] if len(result.P_grid_import) > 0 else 0.0
     )
 
-    if week % 10 == 0:
-        print(f'    Week {week}: Cost={result.objective_value:.2f} NOK')
+    if day % 30 == 0:
+        print(f'    Day {day}: Cost={result.objective_value:.2f} NOK')
 
 print(f'\n  Baseline annual cost (with all tariffs): {baseline_cost:.0f} NOK')
 print()
 
 
-def evaluate_battery_npv(E_nom, P_max, data_dict, config_params):
+def evaluate_battery_npv(E_nom, P_max, data_dict, sim_config, baseline_cost):
     """
     Evaluate NPV for given battery dimensions.
 
@@ -163,7 +174,8 @@ def evaluate_battery_npv(E_nom, P_max, data_dict, config_params):
         E_nom: Battery capacity (kWh)
         P_max: Battery power (kW)
         data_dict: Dict with timestamps, pv_production, load, spot_prices, n_timesteps, weekly_timesteps, n_weeks
-        config_params: Dict with baseline_cost, discount_rate, project_years, battery_cost_per_kwh, resolution
+        sim_config: SimulationConfig object with all configuration parameters
+        baseline_cost: Baseline annual cost (NOK) without battery
 
     Returns:
         float: NPV in NOK (or -inf if invalid dimensions)
@@ -178,34 +190,34 @@ def evaluate_battery_npv(E_nom, P_max, data_dict, config_params):
     load = data_dict['load']
     spot_prices = data_dict['spot_prices']
     n_timesteps = data_dict['n_timesteps']
-    weekly_timesteps = data_dict['weekly_timesteps']
-    n_weeks = data_dict['n_weeks']
+    daily_timesteps = data_dict['daily_timesteps']
+    n_days = data_dict['n_days']
 
-    baseline_cost = config_params['baseline_cost']
-    discount_rate = config_params['discount_rate']
-    project_years = config_params['project_years']
-    battery_cost_per_kwh = config_params['battery_cost_per_kwh']
-    resolution = config_params['resolution']
+    # Extract config parameters
+    discount_rate = sim_config.dimensioning.discount_rate
+    project_years = sim_config.dimensioning.project_years
+    battery_cost_per_kwh = sim_config.dimensioning.battery_cost_per_kwh
+    resolution = sim_config.time_resolution
 
-    # Create optimizer
+    # Create optimizer with config-based parameters
     optimizer = WeeklyOptimizer(
         battery_kwh=E_nom,
         battery_kw=P_max,
-        battery_efficiency=0.90,
-        min_soc_percent=10.0,
-        max_soc_percent=90.0,
+        battery_efficiency=sim_config.battery.efficiency,
+        min_soc_percent=sim_config.battery.min_soc_percent,
+        max_soc_percent=sim_config.battery.max_soc_percent,
         resolution=resolution,
-        horizon_hours=168,
+        horizon_hours=24,  # 24-hour horizon
         use_global_config=True
     )
 
-    # Run 52-week simulation
+    # Run 365-day simulation
     battery_cost = 0.0
     state = BatterySystemState()
 
-    for week in range(n_weeks):
-        t_start = week * weekly_timesteps
-        t_end = min(t_start + weekly_timesteps, n_timesteps)
+    for day in range(n_days):
+        t_start = day * daily_timesteps
+        t_end = min(t_start + daily_timesteps, n_timesteps)
 
         result = optimizer.optimize(
             timestamps=timestamps[t_start:t_end],
@@ -237,23 +249,15 @@ def evaluate_battery_npv(E_nom, P_max, data_dict, config_params):
     return npv
 
 
-# Prepare data structures for evaluation function
+# Prepare data structure for evaluation function
 data_dict = {
     'timestamps': timestamps,
     'pv_production': pv_production,
     'load': load,
     'spot_prices': spot_prices,
     'n_timesteps': n_timesteps,
-    'weekly_timesteps': weekly_timesteps,
-    'n_weeks': n_weeks
-}
-
-config_params = {
-    'baseline_cost': baseline_cost,
-    'discount_rate': DISCOUNT_RATE,
-    'project_years': PROJECT_YEARS,
-    'battery_cost_per_kwh': BATTERY_COST_PER_KWH,
-    'resolution': RESOLUTION
+    'daily_timesteps': daily_timesteps,
+    'n_days': n_days
 }
 
 # Grid search
@@ -270,7 +274,7 @@ for E_nom, P_max in product(E_NOM_RANGE, P_MAX_RANGE):
     count += 1
 
     start_time = time.time()
-    npv = evaluate_battery_npv(E_nom, P_max, data_dict, config_params)
+    npv = evaluate_battery_npv(E_nom, P_max, data_dict, sim_config, baseline_cost)
     solve_time = time.time() - start_time
 
     # Calculate intermediate values for reporting
@@ -307,22 +311,40 @@ print()
 # Define objective function for Powell (minimize negative NPV)
 def powell_objective(x):
     E_nom, P_max = x
-    npv = evaluate_battery_npv(E_nom, P_max, data_dict, config_params)
+    npv = evaluate_battery_npv(E_nom, P_max, data_dict, sim_config, baseline_cost)
     return -npv  # Minimize negative NPV = maximize NPV
 
-# Set bounds
-bounds = [(5, 210), (5, 105)]  # E_nom [5-210 kWh], P_max [5-105 kW]
+# Set bounds to match grid search range (user requested to use grid search constraints)
+bounds = [
+    (sim_config.dimensioning.energy_range_kwh[0], sim_config.dimensioning.energy_range_kwh[1]),  # [20, 200] kWh
+    (sim_config.dimensioning.power_range_kw[0], sim_config.dimensioning.power_range_kw[1])        # [10, 100] kW
+]
 
-# Run Powell's method
-print("Running Powell's method optimization...")
+# Run SLSQP method (bounded optimization with constraints)
+print("Running SLSQP optimization with bounds and C-rate constraints...")
+print(f"  Bounds: E_nom {bounds[0]}, P_max {bounds[1]}")
+
+# Add C-rate constraints to prevent unrealistic batteries
+# C-rate = P_max / E_nom should be between 0.3 and 3.0
+constraints = [
+    {'type': 'ineq', 'fun': lambda x: 3.0 - x[1]/x[0]},  # C-rate ≤ 3
+    {'type': 'ineq', 'fun': lambda x: x[1]/x[0] - 0.3}   # C-rate ≥ 0.3
+]
+print(f"  Constraints: 0.3 ≤ C-rate ≤ 3.0 (prevents unrealistic batteries)")
+
 powell_start_time = time.time()
 
 result = minimize(
     powell_objective,
     x0=[best_config[0], best_config[1]],  # Start from grid search best
-    method='Powell',
+    method='SLSQP',  # CHANGED: SLSQP respects bounds AND constraints!
     bounds=bounds,
-    options={'maxiter': 50, 'ftol': 100}  # ftol=100 NOK tolerance
+    constraints=constraints,
+    options={
+        'maxiter': sim_config.dimensioning.powell_max_iterations,
+        'ftol': sim_config.dimensioning.powell_tolerance_nok,
+        'disp': True  # Show optimization progress
+    }
 )
 
 powell_solve_time = time.time() - powell_start_time
@@ -333,10 +355,22 @@ optimal_P_max = result.x[1]
 optimal_npv = -result.fun  # Convert back from negative
 
 print()
-print(f"Powell's method converged in {result.nit} iterations ({powell_solve_time:.1f}s)")
+print(f"SLSQP converged: {result.success} ({result.nit} iterations, {powell_solve_time:.1f}s)")
 print(f'Optimal configuration: E={optimal_E_nom:.1f} kWh, P={optimal_P_max:.1f} kW')
 print(f'Optimal NPV: {optimal_npv:,.0f} NOK')
 print(f'NPV improvement: {optimal_npv - best_npv:,.0f} NOK ({100*(optimal_npv - best_npv)/abs(best_npv):.2f}%)')
+
+# Validate C-rate (power-to-energy ratio)
+c_rate = optimal_P_max / optimal_E_nom
+print(f'\nC-rate validation: {c_rate:.2f}')
+if c_rate > 3:
+    print(f'  ⚠️  WARNING: High C-rate ({c_rate:.2f}) - SLSQP constraint may have been violated!')
+    print(f'  ℹ️  Check constraint satisfaction')
+elif c_rate < 0.3:
+    print(f'  ⚠️  WARNING: Very low C-rate ({c_rate:.2f}) - SLSQP constraint may have been violated!')
+    print(f'  ℹ️  Check constraint satisfaction')
+else:
+    print(f'  ✅ C-rate is within constrained range (0.3-3.0)')
 print()
 
 print()
@@ -414,7 +448,7 @@ summary = {
     'analysis_metadata': {
         'timestamp': datetime.now().isoformat(),
         'resolution': RESOLUTION,
-        'horizon_hours': 168,
+        'horizon_hours': 24,  # 24-hour daily optimization
         'year': YEAR,
         'discount_rate': DISCOUNT_RATE,
         'project_years': PROJECT_YEARS,

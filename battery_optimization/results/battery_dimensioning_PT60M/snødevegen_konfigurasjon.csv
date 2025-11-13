@@ -1,0 +1,11 @@
+﻿Parameter,Verdi,Detaljer
+Installert solcelleffekt,150 kWp,"Sør-orientert, 25° helning, Stavanger"
+Inverterstørrelse,110 kW,Oversizingsforhold 1.36 (150/110)
+Nettkapasitet (begrensning),70 kW,Nettselskapets begrensning (ikke batteriavhengig)
+Årlig forbruk,70 MWh/år,Typisk kommersiell bedrift
+Forbruksmodell,Kommersiell profil,"Peak 06-22 ukedager, off-peak netter/helg"
+Kraftpris (referanse),NO2 2024 (ENTSO-E),Timespriser fra Nordpool spot NO2
+Nettariff,Lnett bedrift (5 trinn),Progressiv struktur 48-213 NOK/kW/mnd
+Diskonteringsrente,5%,Reell avkastningskrav for investeringsanalyse
+Analyseperiode,15 år,Antatt batteriets levetid
+Batterieffektivitet,90%,Round-trip effektivitet (lade/utlade)
