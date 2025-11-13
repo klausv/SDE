@@ -1,8 +1,8 @@
 """
 Rolling Horizon Battery Optimizer for Operational Control.
 
-Implements 24-hour LP optimization with state-based peak penalty for real-time
-battery dispatch. Uses perfect foresight over 24h window (simulates operational mode).
+Implements LP optimization with state-based peak penalty for real-time
+battery dispatch. Uses perfect foresight over configurable time window.
 
 Based on:
 - OPERATIONAL_OPTIMIZATION_STRATEGY.md: 24h horizon, 15-min updates
@@ -10,10 +10,10 @@ Based on:
 - COMMERCIAL_SYSTEMS_COMPARISON.md: Industry validation
 
 Key differences from Monthly LP:
-1. Fixed 24-hour horizon (96 timesteps @ 15min) instead of full month
+1. Shorter horizon (24h or 168h) with configurable resolution (PT60M or PT15M)
 2. State-based peak penalty instead of monthly peak optimization variable
 3. Returns next control action + planned trajectory
-4. Designed for frequent re-optimization (every 15-30 min)
+4. Designed for frequent re-optimization (every 15-60 min)
 """
 
 import numpy as np
@@ -32,8 +32,8 @@ from src.operational.state_manager import BatterySystemState
 
 @dataclass
 class RollingHorizonResult:
-    """Results from 24-hour rolling horizon optimization."""
-    # Decision variables (96 timesteps @ 15min)
+    """Results from rolling horizon optimization."""
+    # Decision variables (T timesteps, resolution-dependent)
     P_charge: np.ndarray          # Charging power [kW]
     P_discharge: np.ndarray       # Discharging power [kW]
     P_grid_import: np.ndarray     # Grid import [kW]
@@ -41,7 +41,7 @@ class RollingHorizonResult:
     E_battery: np.ndarray         # Battery energy [kWh]
     P_curtail: np.ndarray         # Solar curtailment [kW]
 
-    # Degradation variables (96 timesteps @ 15min)
+    # Degradation variables (T timesteps)
     E_delta_pos: np.ndarray       # Positive energy change [kWh]
     E_delta_neg: np.ndarray       # Negative energy change [kWh]
     DOD_abs: np.ndarray           # Absolute depth of discharge [0-1]
@@ -75,22 +75,23 @@ class RollingHorizonResult:
 
     @property
     def E_battery_final(self) -> float:
-        """Final battery SOC at end of 24h horizon."""
+        """Final battery SOC at end of optimization horizon."""
         return self.E_battery[-1]
 
 
 class RollingHorizonOptimizer:
     """
-    24-hour LP optimizer for rolling horizon battery control.
+    LP optimizer for rolling horizon battery control.
 
     Formulation:
-    - Horizon: 24 hours (96 timesteps @ 15min resolution)
+    - Horizon: Configurable (default 24h, supports 168h for weekly)
+    - Resolution: PT60M (hourly) or PT15M (15-minute)
     - Variables: P_charge, P_discharge, P_grid_import, P_grid_export, E_battery, P_curtail, P_peak_violation
     - Objective: minimize (energy_cost + adaptive_peak_penalty × peak_violations)
     - Constraints: energy balance, battery dynamics, SOC limits, power limits, grid limits
     """
 
-    def __init__(self, config, battery_kwh: float = None, battery_kw: float = None, horizon_hours: int = 24):
+    def __init__(self, config, battery_kwh: float = None, battery_kw: float = None, horizon_hours: int = 24, resolution: str = 'PT15M'):
         """
         Initialize rolling horizon optimizer.
 
@@ -99,12 +100,17 @@ class RollingHorizonOptimizer:
             battery_kwh: Battery capacity [kWh] (overrides config)
             battery_kw: Battery power rating [kW] (overrides config)
             horizon_hours: Optimization horizon length in hours (default 24, supports 168 for weekly)
+            resolution: Time resolution - 'PT60M' (hourly) or 'PT15M' (15-minute, default)
         """
         self.config = config
 
-        # Fixed resolution: 15 minutes (industry standard)
-        self.resolution = 'PT15M'
-        self.timestep_hours = 0.25
+        # Validate resolution
+        if resolution not in ['PT60M', 'PT15M']:
+            raise ValueError(f"Resolution must be 'PT60M' or 'PT15M', got '{resolution}'")
+
+        # Configurable resolution (consistent with Monthly LP)
+        self.resolution = resolution
+        self.timestep_hours = 1.0 if resolution == 'PT60M' else 0.25
 
         # Configurable horizon (supports 24h operational or 168h weekly planning)
         self.horizon_hours = horizon_hours
@@ -418,10 +424,11 @@ class RollingHorizonOptimizer:
 
         if verbose:
             print(f"\n{'='*70}")
-            print(f"Rolling Horizon Optimization - 24h Window")
+            print(f"Rolling Horizon Optimization - {self.horizon_hours}h Window ({self.resolution})")
             print(f"{'='*70}")
             print(f"  Start: {timestamps[0]}")
             print(f"  End: {timestamps[-1]}")
+            print(f"  Timesteps: {T}")
             print(f"  Current SOC: {current_state.current_soc_kwh:.2f} kWh ({current_state.current_soc_percent:.1f}%)")
             print(f"  Monthly peak: {current_state.current_monthly_peak_kw:.1f} kW")
             print(f"  Days remaining: {current_state.days_remaining_in_month}")

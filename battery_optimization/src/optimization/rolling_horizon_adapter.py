@@ -37,6 +37,7 @@ class RollingHorizonAdapter(BaseOptimizer):
         min_soc_percent: float = 10.0,
         max_soc_percent: float = 90.0,
         horizon_hours: int = 24,
+        resolution: str = 'PT15M',
         use_global_config: bool = True,
     ):
         """
@@ -49,6 +50,7 @@ class RollingHorizonAdapter(BaseOptimizer):
             min_soc_percent: Minimum SOC (0-100)
             max_soc_percent: Maximum SOC (0-100)
             horizon_hours: Optimization horizon in hours (default: 24)
+            resolution: Time resolution - 'PT60M' (hourly) or 'PT15M' (15-minute, default)
             use_global_config: Use global config object for tariffs/system params
         """
         super().__init__(
@@ -60,23 +62,17 @@ class RollingHorizonAdapter(BaseOptimizer):
         )
 
         self.horizon_hours = horizon_hours
+        self.resolution = resolution
         self.use_global_config = use_global_config
 
-        # Note: Core optimizer currently hardcoded to 24h @ 15min
-        # This adapter prepares for future flexibility
-        if horizon_hours != 24:
-            import warnings
-            warnings.warn(
-                f"RollingHorizonAdapter: Requested horizon {horizon_hours}h, "
-                f"but core optimizer is fixed at 24h. Using 24h horizon."
-            )
-
-        # Initialize core optimizer with global config
+        # Initialize core optimizer with global config and configurable resolution
         if use_global_config:
             self._core_optimizer = CoreRollingHorizonOptimizer(
                 config=get_global_legacy_config(),
                 battery_kwh=battery_kwh,
                 battery_kw=battery_kw,
+                horizon_hours=horizon_hours,
+                resolution=resolution,
             )
         else:
             raise ValueError("Non-global config mode not yet supported")
@@ -94,10 +90,10 @@ class RollingHorizonAdapter(BaseOptimizer):
         Run rolling horizon optimization.
 
         Args:
-            timestamps: Time index for 24h window
-            pv_production: PV production in kW (96 timesteps @ 15min)
-            consumption: Consumption in kW (96 timesteps @ 15min)
-            spot_prices: Electricity prices in NOK/kWh (96 timesteps @ 15min)
+            timestamps: Time index for optimization window
+            pv_production: PV production in kW
+            consumption: Consumption in kW
+            spot_prices: Electricity prices in NOK/kWh
             initial_soc_kwh: Initial battery SOC (optional)
             battery_state: Complete battery system state (optional)
 
