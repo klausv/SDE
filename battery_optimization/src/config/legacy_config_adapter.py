@@ -6,11 +6,14 @@ core/ optimizers that haven't been fully migrated yet.
 
 This adapter provides a complete legacy config structure matching the
 original config.py to ensure core/rolling_horizon_optimizer.py works.
+
+REFACTORED: Now uses unified tariff configuration from infrastructure module.
 """
 
 from dataclasses import dataclass, field
 from typing import Dict, Tuple, List
 from src.config.simulation_config import SimulationConfig
+from src.infrastructure.tariffs import TariffLoader, TariffProfile
 
 
 @dataclass
@@ -121,24 +124,36 @@ class BatteryConfig:
 
 @dataclass
 class GridTariffConfig:
-    """Grid tariff structure (legacy)"""
+    """Grid tariff structure (legacy) - REFACTORED to use 2024 tariffs"""
     variable_nok_per_kwh: float = 0.25
     fixed_nok_per_month: float = 500.0
 
-    # Energy tariffs (required by core/ optimizer)
-    energy_peak: float = 0.296  # Mon-Fri 06:00-22:00 (NOK/kWh)
-    energy_offpeak: float = 0.176  # Nights/weekends (NOK/kWh)
+    # Load default 2024 tariff from infrastructure
+    _tariff: TariffProfile = field(default_factory=TariffLoader.get_default_tariff, init=False, repr=False)
 
-    # Power tariff brackets (from, to, cumulative_cost)
-    power_brackets: List[Tuple[float, float, float]] = field(default_factory=lambda: [
-        (0, 50, 48),
-        (50, 100, 100),
-        (100, 150, 163),
-        (150, 250, 284),
-        (250, float('inf'), 497)
-    ])
+    # Energy tariffs (required by core/ optimizer) - from YAML config
+    @property
+    def energy_peak(self) -> float:
+        """Mon-Fri 06:00-22:00 (NOK/kWh)"""
+        return self._tariff.energy.peak_rate
 
-    # Legacy format for backward compatibility
+    @property
+    def energy_offpeak(self) -> float:
+        """Nights/weekends (NOK/kWh)"""
+        return self._tariff.energy.offpeak_rate
+
+    # Power tariff brackets (from, to, cost_per_month) - UPDATED to 2024 tariffs from YAML
+    @property
+    def power_brackets(self) -> List[Tuple[float, float, float]]:
+        """2024 Lnett commercial power tariff brackets"""
+        return [
+            (bracket.min_kw, bracket.max_kw, bracket.cost_nok_month)
+            for bracket in self._tariff.power.brackets
+        ]
+
+    # DEPRECATED: Legacy format for backward compatibility (2023 tariffs - DO NOT USE)
+    # These are kept only for backward compatibility with old code
+    # Use power_brackets property instead (2024 tariffs from YAML)
     power_bracket_widths_kw: Tuple[float, ...] = (50, 50, 50, 100, 100)
     power_bracket_costs_nok: Tuple[float, ...] = (48, 52, 63, 121, 213)
 
@@ -152,17 +167,15 @@ class GridTariffConfig:
         Calculate monthly power tariff for given peak demand.
         This is the CORRECT Lnett calculation - you ONLY pay for the bracket your peak falls in.
 
-        Example: 30 kW peak costs:
-        - Falls in 0-50 kW bracket → 48 NOK/month
+        Example with 2024 tariffs: 30 kW peak costs:
+        - Falls in 25-50 kW bracket → 1772 NOK/month
 
         NOT progressive - you don't pay for all lower brackets!
-        """
-        for from_kw, to_kw, cost_per_month in self.power_brackets:
-            if from_kw <= peak_kw < to_kw:
-                return cost_per_month
 
-        # If above all brackets, return the highest bracket cost
-        return self.power_brackets[-1][2]
+        Now uses 2024 tariffs from YAML configuration.
+        """
+        # Use tariff loader for correct 2024 calculation
+        return self._tariff.get_power_tariff(peak_kw)
 
     # Alias for backward compatibility
     def get_progressive_power_cost(self, peak_kw: float) -> float:

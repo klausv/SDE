@@ -2,23 +2,55 @@
 Economic analysis functions for battery optimization.
 
 Provides break-even cost calculations and NPV analysis for battery investments.
+
+REFACTORED: Now uses configuration dataclasses for economic assumptions.
+All parameters can be overridden via function arguments for flexibility.
 """
 
 import numpy as np
 from typing import Dict, Optional
 import logging
+import sys
+from pathlib import Path
+
+# Add parent directory to path for imports
+parent_path = Path(__file__).parent.parent
+if str(parent_path) not in sys.path:
+    sys.path.insert(0, str(parent_path))
+
+from src.config.simulation_config import EconomicConfig, BatteryEconomicsConfig
 
 logger = logging.getLogger(__name__)
 
+
+# =============================================================================
+# CONFIGURATION HELPERS
+# =============================================================================
+
+def _get_default_economic_config() -> EconomicConfig:
+    """Get default economic configuration."""
+    return EconomicConfig()
+
+
+def _get_default_battery_economics_config() -> BatteryEconomicsConfig:
+    """Get default battery economics configuration."""
+    return BatteryEconomicsConfig()
+
+
+# =============================================================================
+# ECONOMIC ANALYSIS FUNCTIONS
+# =============================================================================
 
 def calculate_breakeven_cost(
     annual_savings: float,
     battery_kwh: float,
     battery_kw: float,
-    discount_rate: float = 0.05,
-    lifetime_years: int = 15,
-    degradation_rate: float = 0.02,
-    installation_markup: float = 0.25
+    discount_rate: Optional[float] = None,
+    lifetime_years: Optional[int] = None,
+    degradation_rate: Optional[float] = None,
+    installation_markup: Optional[float] = None,
+    economic_config: Optional[EconomicConfig] = None,
+    battery_economics: Optional[BatteryEconomicsConfig] = None,
 ) -> float:
     """
     Calculate break-even battery cost (NOK/kWh) where NPV = 0.
@@ -40,10 +72,12 @@ def calculate_breakeven_cost(
         annual_savings: Annual cost savings from battery operation [NOK/year]
         battery_kwh: Battery energy capacity [kWh]
         battery_kw: Battery power rating [kW] (not used in cost, but for context)
-        discount_rate: Annual discount rate (default: 5%)
-        lifetime_years: Battery lifetime (default: 15 years)
-        degradation_rate: Annual capacity degradation (default: 2%/year)
-        installation_markup: Installation and BOS costs as fraction of battery cost (default: 25%)
+        discount_rate: Annual discount rate (overrides config if provided)
+        lifetime_years: Battery lifetime (overrides config if provided)
+        degradation_rate: Annual capacity degradation (overrides config if provided)
+        installation_markup: Installation and BOS costs fraction (overrides config if provided)
+        economic_config: Economic configuration (uses defaults if None)
+        battery_economics: Battery economics configuration (uses defaults if None)
 
     Returns:
         Break-even battery cost [NOK/kWh]
@@ -53,11 +87,21 @@ def calculate_breakeven_cost(
         ...     annual_savings=5000,  # 5000 kr/year savings
         ...     battery_kwh=30,       # 30 kWh battery
         ...     battery_kw=15,        # 15 kW power
-        ...     discount_rate=0.05,
-        ...     lifetime_years=15
         ... )
         4982.5  # Max cost ~5000 NOK/kWh for break-even
     """
+    # Get configurations with defaults
+    if economic_config is None:
+        economic_config = _get_default_economic_config()
+    if battery_economics is None:
+        battery_economics = _get_default_battery_economics_config()
+
+    # Use provided parameters or fall back to config
+    discount_rate = discount_rate if discount_rate is not None else economic_config.discount_rate
+    lifetime_years = lifetime_years if lifetime_years is not None else economic_config.project_years
+    degradation_rate = degradation_rate if degradation_rate is not None else battery_economics.degradation.annual_rate
+    installation_markup = installation_markup if installation_markup is not None else battery_economics.installation_markup
+    capacity_floor = battery_economics.degradation.capacity_floor
 
     # Calculate present value of annual savings over lifetime
     # Account for degradation: savings decrease over time
@@ -66,7 +110,7 @@ def calculate_breakeven_cost(
     for year in range(1, lifetime_years + 1):
         # Degradation factor: battery capacity decreases linearly
         degradation_factor = 1.0 - (degradation_rate * (year - 1))
-        degradation_factor = max(0.7, degradation_factor)  # Floor at 70% capacity
+        degradation_factor = max(capacity_floor, degradation_factor)  # NOW CONFIGURABLE!
 
         # Savings in this year (degraded)
         year_savings = annual_savings * degradation_factor
@@ -97,10 +141,12 @@ def calculate_npv(
     annual_savings: float,
     battery_kwh: float,
     battery_cost_per_kwh: float,
-    discount_rate: float = 0.05,
-    lifetime_years: int = 15,
-    degradation_rate: float = 0.02,
-    installation_markup: float = 0.25
+    discount_rate: Optional[float] = None,
+    lifetime_years: Optional[int] = None,
+    degradation_rate: Optional[float] = None,
+    installation_markup: Optional[float] = None,
+    economic_config: Optional[EconomicConfig] = None,
+    battery_economics: Optional[BatteryEconomicsConfig] = None,
 ) -> float:
     """
     Calculate Net Present Value (NPV) of battery investment.
@@ -111,20 +157,34 @@ def calculate_npv(
         annual_savings: Annual cost savings [NOK/year]
         battery_kwh: Battery capacity [kWh]
         battery_cost_per_kwh: Battery cost [NOK/kWh]
-        discount_rate: Annual discount rate (default: 5%)
-        lifetime_years: Battery lifetime (default: 15 years)
-        degradation_rate: Annual degradation (default: 2%/year)
-        installation_markup: Installation markup (default: 25%)
+        discount_rate: Annual discount rate (overrides config if provided)
+        lifetime_years: Battery lifetime (overrides config if provided)
+        degradation_rate: Annual degradation (overrides config if provided)
+        installation_markup: Installation markup (overrides config if provided)
+        economic_config: Economic configuration (uses defaults if None)
+        battery_economics: Battery economics configuration (uses defaults if None)
 
     Returns:
         NPV [NOK]
     """
+    # Get configurations with defaults
+    if economic_config is None:
+        economic_config = _get_default_economic_config()
+    if battery_economics is None:
+        battery_economics = _get_default_battery_economics_config()
+
+    # Use provided parameters or fall back to config
+    discount_rate = discount_rate if discount_rate is not None else economic_config.discount_rate
+    lifetime_years = lifetime_years if lifetime_years is not None else economic_config.project_years
+    degradation_rate = degradation_rate if degradation_rate is not None else battery_economics.degradation.annual_rate
+    installation_markup = installation_markup if installation_markup is not None else battery_economics.installation_markup
+    capacity_floor = battery_economics.degradation.capacity_floor
 
     # Calculate PV of savings
     pv_savings = 0.0
     for year in range(1, lifetime_years + 1):
         degradation_factor = 1.0 - (degradation_rate * (year - 1))
-        degradation_factor = max(0.7, degradation_factor)
+        degradation_factor = max(capacity_floor, degradation_factor)
 
         year_savings = annual_savings * degradation_factor
         discount_factor = 1.0 / ((1.0 + discount_rate) ** year)
@@ -143,11 +203,13 @@ def calculate_irr(
     annual_savings: float,
     battery_kwh: float,
     battery_cost_per_kwh: float,
-    lifetime_years: int = 15,
-    degradation_rate: float = 0.02,
-    installation_markup: float = 0.25,
+    lifetime_years: Optional[int] = None,
+    degradation_rate: Optional[float] = None,
+    installation_markup: Optional[float] = None,
+    economic_config: Optional[EconomicConfig] = None,
+    battery_economics: Optional[BatteryEconomicsConfig] = None,
     tolerance: float = 0.0001,
-    max_iterations: int = 100
+    max_iterations: int = 100,
 ) -> Optional[float]:
     """
     Calculate Internal Rate of Return (IRR).
@@ -160,15 +222,28 @@ def calculate_irr(
         annual_savings: Annual savings [NOK/year]
         battery_kwh: Battery capacity [kWh]
         battery_cost_per_kwh: Battery cost [NOK/kWh]
-        lifetime_years: Lifetime (default: 15 years)
-        degradation_rate: Annual degradation (default: 2%)
-        installation_markup: Installation markup (default: 25%)
+        lifetime_years: Lifetime (overrides config if provided)
+        degradation_rate: Annual degradation (overrides config if provided)
+        installation_markup: Installation markup (overrides config if provided)
+        economic_config: Economic configuration (uses defaults if None)
+        battery_economics: Battery economics configuration (uses defaults if None)
         tolerance: Convergence tolerance (default: 0.01%)
         max_iterations: Max iterations (default: 100)
 
     Returns:
         IRR as decimal (e.g., 0.15 = 15%), or None if no solution found
     """
+    # Get configurations with defaults
+    if economic_config is None:
+        economic_config = _get_default_economic_config()
+    if battery_economics is None:
+        battery_economics = _get_default_battery_economics_config()
+
+    # Use provided parameters or fall back to config
+    lifetime_years = lifetime_years if lifetime_years is not None else economic_config.project_years
+    degradation_rate = degradation_rate if degradation_rate is not None else battery_economics.degradation.annual_rate
+    installation_markup = installation_markup if installation_markup is not None else battery_economics.installation_markup
+    capacity_floor = battery_economics.degradation.capacity_floor
 
     investment = battery_cost_per_kwh * battery_kwh * (1 + installation_markup)
 
@@ -180,7 +255,7 @@ def calculate_irr(
         npv = -investment
         for year in range(1, lifetime_years + 1):
             degradation_factor = 1.0 - (degradation_rate * (year - 1))
-            degradation_factor = max(0.7, degradation_factor)
+            degradation_factor = max(capacity_floor, degradation_factor)
 
             year_savings = annual_savings * degradation_factor
             discount_factor = 1.0 / ((1.0 + irr) ** year)
@@ -194,7 +269,7 @@ def calculate_irr(
         d_npv = 0.0
         for year in range(1, lifetime_years + 1):
             degradation_factor = 1.0 - (degradation_rate * (year - 1))
-            degradation_factor = max(0.7, degradation_factor)
+            degradation_factor = max(capacity_floor, degradation_factor)
 
             year_savings = annual_savings * degradation_factor
             d_npv += -year * year_savings / ((1.0 + irr) ** (year + 1))
@@ -220,8 +295,9 @@ def calculate_payback_period(
     annual_savings: float,
     battery_kwh: float,
     battery_cost_per_kwh: float,
-    degradation_rate: float = 0.02,
-    installation_markup: float = 0.25
+    degradation_rate: Optional[float] = None,
+    installation_markup: Optional[float] = None,
+    battery_economics: Optional[BatteryEconomicsConfig] = None,
 ) -> float:
     """
     Calculate simple payback period (years).
@@ -233,12 +309,21 @@ def calculate_payback_period(
         annual_savings: Annual savings [NOK/year]
         battery_kwh: Battery capacity [kWh]
         battery_cost_per_kwh: Battery cost [NOK/kWh]
-        degradation_rate: Annual degradation (default: 2%)
-        installation_markup: Installation markup (default: 25%)
+        degradation_rate: Annual degradation (overrides config if provided)
+        installation_markup: Installation markup (overrides config if provided)
+        battery_economics: Battery economics configuration (uses defaults if None)
 
     Returns:
         Payback period [years], or np.inf if never pays back
     """
+    # Get configuration with defaults
+    if battery_economics is None:
+        battery_economics = _get_default_battery_economics_config()
+
+    # Use provided parameters or fall back to config
+    degradation_rate = degradation_rate if degradation_rate is not None else battery_economics.degradation.annual_rate
+    installation_markup = installation_markup if installation_markup is not None else battery_economics.installation_markup
+    capacity_floor = battery_economics.degradation.capacity_floor
 
     investment = battery_cost_per_kwh * battery_kwh * (1 + installation_markup)
 
@@ -246,7 +331,7 @@ def calculate_payback_period(
 
     for year in range(1, 51):  # Max 50 years
         degradation_factor = 1.0 - (degradation_rate * (year - 1))
-        degradation_factor = max(0.7, degradation_factor)
+        degradation_factor = max(capacity_floor, degradation_factor)
 
         year_savings = annual_savings * degradation_factor
         cumulative_savings += year_savings
@@ -265,10 +350,12 @@ def analyze_battery_investment(
     battery_kwh: float,
     battery_kw: float,
     battery_cost_per_kwh: float,
-    discount_rate: float = 0.05,
-    lifetime_years: int = 15,
-    degradation_rate: float = 0.02,
-    installation_markup: float = 0.25
+    discount_rate: Optional[float] = None,
+    lifetime_years: Optional[int] = None,
+    degradation_rate: Optional[float] = None,
+    installation_markup: Optional[float] = None,
+    economic_config: Optional[EconomicConfig] = None,
+    battery_economics: Optional[BatteryEconomicsConfig] = None,
 ) -> Dict[str, float]:
     """
     Comprehensive economic analysis of battery investment.
@@ -278,10 +365,12 @@ def analyze_battery_investment(
         battery_kwh: Battery capacity [kWh]
         battery_kw: Battery power [kW]
         battery_cost_per_kwh: Battery cost [NOK/kWh]
-        discount_rate: Discount rate (default: 5%)
-        lifetime_years: Lifetime (default: 15 years)
-        degradation_rate: Degradation (default: 2%/year)
-        installation_markup: Installation markup (default: 25%)
+        discount_rate: Discount rate (overrides config if provided)
+        lifetime_years: Lifetime (overrides config if provided)
+        degradation_rate: Degradation (overrides config if provided)
+        installation_markup: Installation markup (overrides config if provided)
+        economic_config: Economic configuration (uses defaults if None)
+        battery_economics: Battery economics configuration (uses defaults if None)
 
     Returns:
         Dictionary with economic metrics:
@@ -292,36 +381,53 @@ def analyze_battery_investment(
         - total_investment: Total upfront investment [NOK]
         - pv_savings: Present value of all savings [NOK]
     """
+    # Get configurations with defaults
+    if economic_config is None:
+        economic_config = _get_default_economic_config()
+    if battery_economics is None:
+        battery_economics = _get_default_battery_economics_config()
 
+    # Use provided parameters or fall back to config
+    discount_rate_val = discount_rate if discount_rate is not None else economic_config.discount_rate
+    lifetime_years_val = lifetime_years if lifetime_years is not None else economic_config.project_years
+    degradation_rate_val = degradation_rate if degradation_rate is not None else battery_economics.degradation.annual_rate
+    installation_markup_val = installation_markup if installation_markup is not None else battery_economics.installation_markup
+    capacity_floor = battery_economics.degradation.capacity_floor
+
+    # Pass config objects to all sub-functions for consistency
     npv = calculate_npv(
         annual_savings, battery_kwh, battery_cost_per_kwh,
-        discount_rate, lifetime_years, degradation_rate, installation_markup
+        discount_rate, lifetime_years, degradation_rate, installation_markup,
+        economic_config, battery_economics
     )
 
     irr = calculate_irr(
         annual_savings, battery_kwh, battery_cost_per_kwh,
-        lifetime_years, degradation_rate, installation_markup
+        lifetime_years, degradation_rate, installation_markup,
+        economic_config, battery_economics
     )
 
     payback = calculate_payback_period(
         annual_savings, battery_kwh, battery_cost_per_kwh,
-        degradation_rate, installation_markup
+        degradation_rate, installation_markup,
+        battery_economics
     )
 
     breakeven = calculate_breakeven_cost(
         annual_savings, battery_kwh, battery_kw,
-        discount_rate, lifetime_years, degradation_rate, installation_markup
+        discount_rate, lifetime_years, degradation_rate, installation_markup,
+        economic_config, battery_economics
     )
 
-    investment = battery_cost_per_kwh * battery_kwh * (1 + installation_markup)
+    investment = battery_cost_per_kwh * battery_kwh * (1 + installation_markup_val)
 
     # PV of savings
     pv_savings = 0.0
-    for year in range(1, lifetime_years + 1):
-        degradation_factor = 1.0 - (degradation_rate * (year - 1))
-        degradation_factor = max(0.7, degradation_factor)
+    for year in range(1, lifetime_years_val + 1):
+        degradation_factor = 1.0 - (degradation_rate_val * (year - 1))
+        degradation_factor = max(capacity_floor, degradation_factor)
         year_savings = annual_savings * degradation_factor
-        discount_factor = 1.0 / ((1.0 + discount_rate) ** year)
+        discount_factor = 1.0 / ((1.0 + discount_rate_val) ** year)
         pv_savings += year_savings * discount_factor
 
     return {

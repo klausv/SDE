@@ -1,0 +1,54 @@
+# Extended Configuration Example
+# Demonstrates new configurable economic assumptions (Phase 1.2)
+
+mode: rolling_horizon
+time_resolution: PT60M
+
+simulation_period:
+  start_date: "2024-01-01"
+  end_date: "2024-12-31"
+
+battery:
+  capacity_kwh: 80.0
+  power_kw: 60.0
+  efficiency: 0.90
+  initial_soc_percent: 50.0
+  min_soc_percent: 10.0
+  max_soc_percent: 90.0
+
+data_sources:
+  prices_file: "data/spot_prices/NO2_2024_60min_real.csv"
+  production_file: "data/pv_profiles/pvgis_58.97_5.73_150kWp.csv"
+  consumption_file: "data/consumption/commercial_2024.csv"
+
+# NEW: Economic analysis parameters (previously hardcoded)
+economic:
+  discount_rate: 0.05  # 5% discount rate
+  project_years: 15    # 15-year project lifetime
+  eur_to_nok: 11.5     # EUR to NOK exchange rate
+
+# NEW: Battery economics (previously scattered across files)
+battery_economics:
+  # Component costs (NOK)
+  cell_cost_per_kwh: 3054.0        # Skanbatt ESS Rack 48V
+  inverter_cost_per_kw: 1324.2     # Victron Multiplus-II
+  control_system_cost_nok: 1680.0  # Cerbo GX
+
+  # Installation and BOS (previously hardcoded at 25%)
+  installation_markup: 0.25  # NOW CONFIGURABLE!
+
+  # Degradation model (previously hardcoded)
+  degradation:
+    enabled: true
+    annual_rate: 0.02        # 2% per year - NOW CONFIGURABLE!
+    model: "linear"          # Linear degradation model
+    capacity_floor: 0.70     # 70% minimum - NOW CONFIGURABLE!
+
+# NEW: Infrastructure references
+infrastructure:
+  tariffs: "configs/infrastructure/tariffs_lnett_2024.yaml"
+
+# Output settings
+output_dir: "results"
+save_trajectory: true
+save_plots: true

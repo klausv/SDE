@@ -177,6 +177,90 @@ class SimulationPeriodConfig:
 
 
 @dataclass
+class EconomicConfig:
+    """
+    Economic analysis parameters.
+
+    Previously hardcoded in core/economic_analysis.py, now configurable.
+    """
+    discount_rate: float = 0.05  # 5% discount rate
+    project_years: int = 15  # Project lifetime
+    eur_to_nok: float = 11.5  # EUR to NOK exchange rate
+
+
+@dataclass
+class DegradationConfig:
+    """
+    Battery degradation model configuration.
+
+    Previously hardcoded in core/economic_analysis.py, now configurable.
+    """
+    enabled: bool = True
+    annual_rate: float = 0.02  # 2% linear degradation per year
+    model: str = "linear"  # Degradation model type
+    capacity_floor: float = 0.70  # Minimum capacity retention (70%)
+
+    def validate(self) -> None:
+        """Validate degradation parameters."""
+        if not (0 <= self.annual_rate <= 1):
+            raise ValueError("Annual degradation rate must be between 0 and 1")
+        if not (0 < self.capacity_floor <= 1):
+            raise ValueError("Capacity floor must be between 0 and 1")
+        if self.model not in ["linear", "cycle_based"]:
+            raise ValueError(f"Unknown degradation model: {self.model}")
+
+
+@dataclass
+class BatteryEconomicsConfig:
+    """
+    Battery economic cost parameters.
+
+    Based on Skanbatt ESS Rack 48V and Victron components.
+    Previously scattered across config files, now unified.
+    """
+    # Component costs (NOK)
+    cell_cost_per_kwh: float = 3054.0  # Based on Skanbatt 30.72 kWh = 93,800 NOK
+    inverter_cost_per_kw: float = 1324.2  # Based on 6× Victron Multiplus-II = 39,726 NOK for 30 kW
+    control_system_cost_nok: float = 1680.0  # Cerbo GX control system
+
+    # Installation and BOS (Balance of System)
+    installation_markup: float = 0.25  # 25% markup for installation/BOS
+
+    # Degradation
+    degradation: DegradationConfig = field(default_factory=DegradationConfig)
+
+    def get_total_battery_cost(self, capacity_kwh: float, power_kw: float) -> float:
+        """
+        Calculate total battery system cost including installation.
+
+        Args:
+            capacity_kwh: Battery capacity in kWh
+            power_kw: Battery power in kW
+
+        Returns:
+            Total cost in NOK
+        """
+        cell_cost = capacity_kwh * self.cell_cost_per_kwh
+        inverter_cost = power_kw * self.inverter_cost_per_kw
+        control_cost = self.control_system_cost_nok
+
+        base_cost = cell_cost + inverter_cost + control_cost
+        total_cost = base_cost * (1 + self.installation_markup)
+
+        return total_cost
+
+
+@dataclass
+class InfrastructureConfig:
+    """
+    References to infrastructure configuration files.
+
+    Allows custom tariff profiles and other infrastructure overrides.
+    """
+    tariffs: str = "configs/infrastructure/tariffs_lnett_2024.yaml"  # Tariff configuration file
+
+
+@dataclass
 class SimulationConfig:
     """
     Master configuration for battery optimization simulations.
@@ -207,6 +291,15 @@ class SimulationConfig:
 
     # Dimensioning configuration (optional)
     dimensioning: Optional[DimensioningConfig] = None
+
+    # Economic analysis configuration (NEW - previously hardcoded)
+    economic: EconomicConfig = field(default_factory=EconomicConfig)
+
+    # Battery economics configuration (NEW - previously scattered)
+    battery_economics: BatteryEconomicsConfig = field(default_factory=BatteryEconomicsConfig)
+
+    # Infrastructure configuration (NEW - tariffs and other infrastructure)
+    infrastructure: InfrastructureConfig = field(default_factory=InfrastructureConfig)
 
     # Output settings
     output_dir: str = "results"
@@ -320,6 +413,46 @@ class SimulationConfig:
                 battery_cost_per_kwh=dim_dict.get('battery_cost_per_kwh', 5000.0),
                 year=dim_dict.get('year', 2024),
                 resolution=dim_dict.get('resolution', 'PT60M'),
+            )
+
+        # Parse economic configuration (NEW)
+        if 'economic' in config_dict:
+            econ_dict = config_dict['economic']
+            config.economic = EconomicConfig(
+                discount_rate=econ_dict.get('discount_rate', 0.05),
+                project_years=econ_dict.get('project_years', 15),
+                eur_to_nok=econ_dict.get('eur_to_nok', 11.5),
+            )
+
+        # Parse battery economics configuration (NEW)
+        if 'battery_economics' in config_dict:
+            bat_econ_dict = config_dict['battery_economics']
+
+            # Parse degradation sub-config
+            degradation_config = DegradationConfig()
+            if 'degradation' in bat_econ_dict:
+                deg_dict = bat_econ_dict['degradation']
+                degradation_config = DegradationConfig(
+                    enabled=deg_dict.get('enabled', True),
+                    annual_rate=deg_dict.get('annual_rate', 0.02),
+                    model=deg_dict.get('model', 'linear'),
+                    capacity_floor=deg_dict.get('capacity_floor', 0.70),
+                )
+                degradation_config.validate()
+
+            config.battery_economics = BatteryEconomicsConfig(
+                cell_cost_per_kwh=bat_econ_dict.get('cell_cost_per_kwh', 3054.0),
+                inverter_cost_per_kw=bat_econ_dict.get('inverter_cost_per_kw', 1324.2),
+                control_system_cost_nok=bat_econ_dict.get('control_system_cost_nok', 1680.0),
+                installation_markup=bat_econ_dict.get('installation_markup', 0.25),
+                degradation=degradation_config,
+            )
+
+        # Parse infrastructure configuration (NEW)
+        if 'infrastructure' in config_dict:
+            infra_dict = config_dict['infrastructure']
+            config.infrastructure = InfrastructureConfig(
+                tariffs=infra_dict.get('tariffs', 'configs/infrastructure/tariffs_lnett_2024.yaml'),
             )
 
         return config

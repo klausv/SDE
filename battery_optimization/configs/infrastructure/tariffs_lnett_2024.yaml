@@ -1,0 +1,94 @@
+# Lnett Commercial Tariff < 100 MWh/year (2024)
+# Norwegian grid tariff structure for commercial customers
+# All prices excluding VAT
+
+tariff_profile:
+  name: "Lnett Commercial < 100 MWh/year"
+  year: 2024
+  version: "2024.1"
+  valid_from: "2024-01-01"
+  valid_until: "2024-12-31"
+
+  energy:
+    # Time-of-use energy tariffs (NOK/kWh)
+    peak:
+      rate: 0.296
+      schedule: "Mon-Fri 06:00-22:00"
+      description: "Peak hours weekdays"
+
+    offpeak:
+      rate: 0.176
+      schedule: "Mon-Fri 22:00-06:00 + weekends"
+      description: "Off-peak hours and weekends"
+
+  power:
+    # Monthly capacity charges based on peak demand
+    method: "single_bracket"
+    description: "Only pay for the bracket you fall into (not progressive sum)"
+    peak_calculation: "top_3_daily_avg"
+    peak_calculation_description: "Average of top 3 daily peaks per month (Norwegian standard)"
+
+    brackets:
+      - min_kw: 0
+        max_kw: 2
+        cost_nok_month: 136
+
+      - min_kw: 2
+        max_kw: 5
+        cost_nok_month: 232
+
+      - min_kw: 5
+        max_kw: 10
+        cost_nok_month: 372
+
+      - min_kw: 10
+        max_kw: 15
+        cost_nok_month: 572
+
+      - min_kw: 15
+        max_kw: 20
+        cost_nok_month: 772
+
+      - min_kw: 20
+        max_kw: 25
+        cost_nok_month: 972
+
+      - min_kw: 25
+        max_kw: 50
+        cost_nok_month: 1772
+
+      - min_kw: 50
+        max_kw: 75
+        cost_nok_month: 2572
+
+      - min_kw: 75
+        max_kw: 100
+        cost_nok_month: 3372
+
+      - min_kw: 100
+        max_kw: .inf
+        cost_nok_month: 5600
+
+  consumption_tax:
+    # Seasonal electricity consumption tax (NOK/kWh)
+    description: "Norwegian forbruksavgift (electricity consumption tax)"
+
+    winter:
+      months: [1, 2, 3]
+      rate: 0.0979
+      season_name: "Winter"
+
+    summer:
+      months: [4, 5, 6, 7, 8, 9]
+      rate: 0.1693
+      season_name: "Summer"
+
+    fall:
+      months: [10, 11, 12]
+      rate: 0.1253
+      season_name: "Fall"
+
+  feed_in:
+    # Export compensation (plusskunde support)
+    rate: 0.04
+    description: "Grid tariff reduction for export (plusskunde-støtte)"

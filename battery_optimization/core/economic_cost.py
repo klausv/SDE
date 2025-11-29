@@ -7,54 +7,48 @@ Implements total electricity cost calculation following Korpås et al. methodolo
 
 Based on Norwegian Lnett commercial tariff structure.
 No VAT included (company assumption).
+
+REFACTORED: Now uses unified tariff configuration from infrastructure module.
 """
 
 import numpy as np
 import pandas as pd
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
+
+# Import tariff infrastructure
+import sys
+from pathlib import Path
+
+# Add src to path for imports
+src_path = Path(__file__).parent.parent / "src"
+if str(src_path) not in sys.path:
+    sys.path.insert(0, str(src_path))
+
+from infrastructure.tariffs import TariffLoader, TariffProfile
 
 
 # =============================================================================
-# TARIFF CONFIGURATION (Lnett Commercial < 100 MWh/year)
+# TARIFF CONFIGURATION (Unified from YAML)
 # =============================================================================
 
-# Energy tariffs (NOK/kWh excluding VAT)
-ENERGY_TARIFF_DAY = 0.296  # Mon-Fri 06:00-22:00
-ENERGY_TARIFF_NIGHT = 0.176  # Mon-Fri 22:00-06:00 + weekends
+# Load default Lnett 2024 tariff configuration
+# This provides backward compatibility for existing code
+_DEFAULT_TARIFF = TariffLoader.get_default_tariff()
 
-# Consumption tax by month (NOK/kWh)
-CONSUMPTION_TAX = {
-    1: 0.0979,
-    2: 0.0979,
-    3: 0.0979,  # Jan-Mar (winter)
-    4: 0.1693,
-    5: 0.1693,
-    6: 0.1693,
-    7: 0.1693,
-    8: 0.1693,
-    9: 0.1693,  # Apr-Sep (summer)
-    10: 0.1253,
-    11: 0.1253,
-    12: 0.1253,  # Oct-Dec (fall)
-}
+# Deprecated constants (kept for backward compatibility, will be removed in future)
+# Use _DEFAULT_TARIFF methods instead
+ENERGY_TARIFF_DAY = _DEFAULT_TARIFF.energy.peak_rate
+ENERGY_TARIFF_NIGHT = _DEFAULT_TARIFF.energy.offpeak_rate
+FEED_IN_TARIFF = _DEFAULT_TARIFF.feed_in.rate
 
-# Power tariff progressive brackets (NOK/month per bracket)
-# Each bracket specifies: (min_kW, max_kW): cost_NOK_per_month
+# Deprecated: Use _DEFAULT_TARIFF.get_consumption_tax(month) instead
+CONSUMPTION_TAX = {month: _DEFAULT_TARIFF.get_consumption_tax(month) for month in range(1, 13)}
+
+# Deprecated: Use _DEFAULT_TARIFF.get_power_tariff(peak_kw) instead
 POWER_TARIFF_BRACKETS = [
-    (0, 2, 136),
-    (2, 5, 232),
-    (5, 10, 372),
-    (10, 15, 572),
-    (15, 20, 772),
-    (20, 25, 972),
-    (25, 50, 1772),
-    (50, 75, 2572),
-    (75, 100, 3372),
-    (100, float("inf"), 5600),
+    (bracket.min_kw, bracket.max_kw, bracket.cost_nok_month)
+    for bracket in _DEFAULT_TARIFF.power.brackets
 ]
-
-# Feed-in tariff (export compensation, NOK/kWh)
-FEED_IN_TARIFF = 0.04
 
 
 # =============================================================================
@@ -62,57 +56,55 @@ FEED_IN_TARIFF = 0.04
 # =============================================================================
 
 
-def get_energy_tariff(timestamp: pd.Timestamp) -> float:
+def get_energy_tariff(timestamp: pd.Timestamp, tariff: Optional[TariffProfile] = None) -> float:
     """
     Get time-of-use energy tariff for given timestamp.
 
     Args:
         timestamp: pandas Timestamp
+        tariff: Optional TariffProfile (uses default if None)
 
     Returns:
         energy_tariff: NOK/kWh (excluding VAT)
     """
-    # Check if weekday (0=Monday, 6=Sunday)
-    is_weekday = timestamp.weekday() < 5
+    if tariff is None:
+        tariff = _DEFAULT_TARIFF
 
-    # Check if peak hours (06:00-22:00)
-    is_peak_hours = 6 <= timestamp.hour < 22
-
-    if is_weekday and is_peak_hours:
-        return ENERGY_TARIFF_DAY
-    else:
-        return ENERGY_TARIFF_NIGHT
+    return tariff.get_energy_tariff(timestamp)
 
 
-def get_consumption_tax(month: int) -> float:
+def get_consumption_tax(month: int, tariff: Optional[TariffProfile] = None) -> float:
     """
     Get seasonal consumption tax for given month.
 
     Args:
         month: Month number (1-12)
+        tariff: Optional TariffProfile (uses default if None)
 
     Returns:
         consumption_tax: NOK/kWh
     """
-    return CONSUMPTION_TAX[month]
+    if tariff is None:
+        tariff = _DEFAULT_TARIFF
+
+    return tariff.get_consumption_tax(month)
 
 
-def get_power_tariff(peak_kw: float) -> float:
+def get_power_tariff(peak_kw: float, tariff: Optional[TariffProfile] = None) -> float:
     """
-    Get monthly power tariff for given peak demand using progressive brackets.
+    Get monthly power tariff for given peak demand.
 
     Args:
         peak_kw: Monthly peak power in kW
+        tariff: Optional TariffProfile (uses default if None)
 
     Returns:
         power_tariff: NOK/month
     """
-    for min_kw, max_kw, cost in POWER_TARIFF_BRACKETS:
-        if min_kw <= peak_kw < max_kw:
-            return cost
+    if tariff is None:
+        tariff = _DEFAULT_TARIFF
 
-    # Should never reach here if brackets are properly defined
-    return POWER_TARIFF_BRACKETS[-1][2]
+    return tariff.get_power_tariff(peak_kw)
 
 
 # =============================================================================
@@ -126,6 +118,7 @@ def calculate_energy_cost(
     timestamps: pd.DatetimeIndex,
     spot_prices: np.ndarray,
     timestep_hours: float = 1.0,
+    tariff: Optional[TariffProfile] = None,
 ) -> Tuple[float, pd.DataFrame]:
     """
     Calculate total energy cost (hourly spot + tariff + tax).
@@ -139,11 +132,15 @@ def calculate_energy_cost(
         timestamps: Time index for each timestep
         spot_prices: Hourly spot prices (NOK/kWh), shape (T,)
         timestep_hours: Duration of each timestep in hours (default 1.0)
+        tariff: Optional TariffProfile (uses default if None)
 
     Returns:
         total_energy_cost: Total annual energy cost in NOK
         hourly_details: DataFrame with hourly cost breakdown
     """
+    if tariff is None:
+        tariff = _DEFAULT_TARIFF
+
     T = len(grid_import_power)
 
     # Initialize arrays for breakdown
@@ -157,8 +154,8 @@ def calculate_energy_cost(
         timestamp = timestamps[t]
 
         # Get tariffs for this hour
-        energy_tariff = get_energy_tariff(timestamp)
-        consumption_tax = get_consumption_tax(timestamp.month)
+        energy_tariff = get_energy_tariff(timestamp, tariff)
+        consumption_tax = get_consumption_tax(timestamp.month, tariff)
 
         # Store for breakdown
         energy_tariffs[t] = energy_tariff
@@ -170,7 +167,7 @@ def calculate_energy_cost(
 
         # Calculate export revenue (spot price + feed-in tariff/plusskunde-støtte)
         # Norwegian "plusskunde" gets: spot price + grid tariff reduction (~0.04 NOK/kWh)
-        total_price_export = spot_prices[t] + FEED_IN_TARIFF
+        total_price_export = spot_prices[t] + tariff.get_feed_in_tariff()
         export_revenues[t] = grid_export_power[t] * total_price_export * timestep_hours
 
     # Total energy cost
@@ -195,7 +192,9 @@ def calculate_energy_cost(
 
 
 def calculate_peak_cost(
-    grid_import_power: np.ndarray, timestamps: pd.DatetimeIndex
+    grid_import_power: np.ndarray,
+    timestamps: pd.DatetimeIndex,
+    tariff: Optional[TariffProfile] = None,
 ) -> Tuple[float, pd.DataFrame]:
     """
     Calculate total peak power cost (monthly capacity charges).
@@ -208,11 +207,14 @@ def calculate_peak_cost(
     Args:
         grid_import_power: Power bought from grid (kW), shape (T,)
         timestamps: Time index for each timestep
+        tariff: Optional TariffProfile (uses default if None)
 
     Returns:
         total_peak_cost: Total annual peak cost in NOK
         monthly_details: DataFrame with monthly peak breakdown
     """
+    if tariff is None:
+        tariff = _DEFAULT_TARIFF
     # Create DataFrame for easier grouping
     df = pd.DataFrame(
         {"timestamp": timestamps, "grid_import_kw": grid_import_power}
@@ -238,7 +240,7 @@ def calculate_peak_cost(
             monthly_peak = daily_peaks.max()
 
         # Get tariff for this peak
-        monthly_cost = get_power_tariff(monthly_peak)
+        monthly_cost = get_power_tariff(monthly_peak, tariff)
 
         months.append(month)
         monthly_peaks.append(monthly_peak)
@@ -265,6 +267,7 @@ def calculate_total_cost(
     timestamps: pd.DatetimeIndex,
     spot_prices: np.ndarray,
     timestep_hours: float = 1.0,
+    tariff: Optional[TariffProfile] = None,
 ) -> Dict:
     """
     Calculate total electricity cost (energy + peak).
@@ -281,6 +284,7 @@ def calculate_total_cost(
         timestamps: Time index for each timestep
         spot_prices: Hourly spot prices (NOK/kWh), shape (T,)
         timestep_hours: Duration of each timestep in hours (default 1.0)
+        tariff: Optional TariffProfile (uses default if None)
 
     Returns:
         results: Dictionary containing:
@@ -290,13 +294,16 @@ def calculate_total_cost(
             - monthly_breakdown: DataFrame with monthly details
             - hourly_details: DataFrame with hourly details
     """
+    if tariff is None:
+        tariff = _DEFAULT_TARIFF
+
     # Calculate energy cost
     energy_cost, hourly_details = calculate_energy_cost(
-        grid_import_power, grid_export_power, timestamps, spot_prices, timestep_hours
+        grid_import_power, grid_export_power, timestamps, spot_prices, timestep_hours, tariff
     )
 
     # Calculate peak cost
-    peak_cost, monthly_details = calculate_peak_cost(grid_import_power, timestamps)
+    peak_cost, monthly_details = calculate_peak_cost(grid_import_power, timestamps, tariff)
 
     # Add energy cost breakdown to monthly details
     monthly_energy_costs = []

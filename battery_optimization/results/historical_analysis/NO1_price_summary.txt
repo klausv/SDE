@@ -1,0 +1,27 @@
+ENTSO-E Electricity Price Analysis for NO1 (Oslo, Norway)
+======================================================================
+Period: 2003-2024
+Total years analyzed: 11
+
+ANNUAL AVERAGE PRICES (EUR/MWh)
+----------------------------------------------------------------------
+2014:   30.83 EUR/MWh (0.355 NOK/kWh)
+2015:   19.85 EUR/MWh (0.228 NOK/kWh)
+2016:   26.17 EUR/MWh (0.301 NOK/kWh)
+2017:   29.04 EUR/MWh (0.334 NOK/kWh)
+2018:   43.65 EUR/MWh (0.502 NOK/kWh)
+2019:   39.29 EUR/MWh (0.452 NOK/kWh)
+2020:    9.29 EUR/MWh (0.107 NOK/kWh)
+2021:   74.68 EUR/MWh (0.859 NOK/kWh)
+2022:  192.53 EUR/MWh (2.214 NOK/kWh)
+2023:   66.95 EUR/MWh (0.770 NOK/kWh)
+2024:   42.04 EUR/MWh (0.483 NOK/kWh)
+
+======================================================================
+OVERALL STATISTICS (2003-2024)
+----------------------------------------------------------------------
+Average annual mean: 52.21 EUR/MWh
+Minimum annual mean: 9.29 EUR/MWh (2020)
+Maximum annual mean: 192.53 EUR/MWh (2022)
+Standard deviation: 50.32 EUR/MWh
+Average volatility: 46.11%

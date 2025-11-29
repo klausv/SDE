@@ -1,0 +1,2 @@
+total_charged_kwh,total_discharged_kwh,total_import_kwh,total_export_kwh,total_curtailed_kwh,avg_price_nok_per_kwh,estimated_cost_nok,estimated_revenue_nok,net_cost_nok
+1673.4225268252355,1770.802101081198,10309.384111484804,9869.168419528001,825.4420058689489,0.6712758017678477,6920.440085169672,6624.933943600582,295.5061415690898
