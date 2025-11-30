@@ -10,6 +10,7 @@ from src.optimization.base_optimizer import BaseOptimizer
 from src.optimization.rolling_horizon_adapter import RollingHorizonAdapter
 from src.optimization.monthly_lp_adapter import MonthlyLPAdapter
 from src.optimization.weekly_optimizer import WeeklyOptimizer
+from src.optimization.baseline_calculator import BaselineCalculator
 
 
 class OptimizerFactory:
@@ -21,14 +22,14 @@ class OptimizerFactory:
 
     @staticmethod
     def create(
-        mode: Literal["rolling_horizon", "monthly", "yearly"],
+        mode: Literal["rolling_horizon", "monthly", "yearly", "baseline"],
         config: SimulationConfig
     ) -> BaseOptimizer:
         """
         Create optimizer for specified simulation mode.
 
         Args:
-            mode: Simulation mode ('rolling_horizon', 'monthly', or 'yearly')
+            mode: Simulation mode ('rolling_horizon', 'monthly', 'yearly', or 'baseline')
             config: Simulation configuration
 
         Returns:
@@ -36,8 +37,15 @@ class OptimizerFactory:
 
         Raises:
             ValueError: If mode is invalid or configuration is incompatible
+
+        Note:
+            'baseline' mode creates BaselineCalculator (no battery, instant calculation)
         """
         battery_config = config.battery
+
+        # Auto-detect baseline mode: if battery_kwh is 0, use baseline calculator
+        if mode == "baseline" or battery_config.capacity_kwh == 0:
+            return OptimizerFactory._create_baseline(config)
 
         if mode == "rolling_horizon":
             return OptimizerFactory._create_rolling_horizon(config)
@@ -51,7 +59,7 @@ class OptimizerFactory:
         else:
             raise ValueError(
                 f"Invalid mode '{mode}'. "
-                f"Must be 'rolling_horizon', 'monthly', or 'yearly'"
+                f"Must be 'rolling_horizon', 'monthly', 'yearly', or 'baseline'"
             )
 
     @staticmethod
@@ -133,6 +141,27 @@ class OptimizerFactory:
         )
 
         return optimizer
+
+    @staticmethod
+    def _create_baseline(config: SimulationConfig) -> BaselineCalculator:
+        """
+        Create baseline calculator (no battery).
+
+        Args:
+            config: Simulation configuration
+
+        Returns:
+            BaselineCalculator configured from config
+        """
+        # Get grid limits from global config
+        from core.config import GRID_LIMIT_IMPORT_KW, GRID_LIMIT_EXPORT_KW
+
+        calculator = BaselineCalculator(
+            grid_limit_import_kw=GRID_LIMIT_IMPORT_KW,
+            grid_limit_export_kw=GRID_LIMIT_EXPORT_KW,
+        )
+
+        return calculator
 
     @staticmethod
     def create_from_config(config: SimulationConfig) -> BaseOptimizer:

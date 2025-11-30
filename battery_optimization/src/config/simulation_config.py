@@ -18,7 +18,13 @@ import yaml
 
 @dataclass
 class BatteryConfigSim:
-    """Battery system parameters for simulation."""
+    """
+    Battery system parameters for simulation.
+
+    Note:
+        Setting capacity_kwh=0 and power_kw=0 enables baseline mode
+        (no battery, instant calculation without optimization solvers).
+    """
     capacity_kwh: float = 80.0
     power_kw: float = 60.0
     efficiency: float = 0.90
@@ -272,7 +278,7 @@ class SimulationConfig:
     """
 
     # Core settings
-    mode: Literal["rolling_horizon", "monthly", "yearly"] = "rolling_horizon"
+    mode: Literal["rolling_horizon", "monthly", "yearly", "baseline"] = "rolling_horizon"
     time_resolution: str = "PT60M"  # ISO 8601 duration: PT60M (hourly) or PT15M (15-min)
 
     # Simulation period

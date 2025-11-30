@@ -19,6 +19,7 @@ class SolverType(Enum):
     MILP = "milp"       # Mixed-Integer Linear Programming
     MPC = "mpc"         # Model Predictive Control
     HEURISTIC = "heuristic"
+    BASELINE = "baseline"  # Baseline calculation (no optimization)
 
 
 class TimeScale(Enum):
@@ -360,6 +361,48 @@ def _register_builtin_optimizers():
             "No degradation tracking currently"
         ],
         config_section="yearly"
+    ))
+
+    # Baseline Calculator (No Battery)
+    OptimizerRegistry.register(OptimizerMetadata(
+        name="baseline",
+        display_name="Baseline Calculator (No Battery)",
+        description=(
+            "Calculates system performance without battery storage. Provides critical "
+            "economic baseline for comparing battery investment ROI. Uses same infrastructure "
+            "(pricing, weather, tariffs) but bypasses optimization solvers entirely. "
+            "Instant calculation instead of 30-60s solver overhead."
+        ),
+        version="1.0",
+        solver_type=SolverType.BASELINE,
+        time_scale=TimeScale.HOURLY,
+        optimization_scope="global",
+        supports_degradation=False,
+        supports_power_tariff=True,
+        supports_forecasting=False,
+        supports_rolling_execution=False,
+        requires_solver=None,  # No solver needed
+        min_horizon_hours=1,
+        max_horizon_hours=8760,
+        typical_horizon_hours=8760,  # Full year
+        typical_solve_time_s=0.001,  # Nearly instant
+        memory_usage_mb=50,
+        scales_linearly=True,
+        best_for=[
+            "Economic baseline for ROI comparison",
+            "Quick what-if analysis without battery",
+            "Understanding curtailment without storage",
+            "Fast iteration for parameter studies"
+        ],
+        limitations=[
+            "No battery optimization (by design)",
+            "Simple grid flow calculation only",
+            "Respects grid limits but no storage"
+        ],
+        references=[
+            "Standard grid-connected PV system analysis"
+        ],
+        config_section="baseline"
     ))
 
 

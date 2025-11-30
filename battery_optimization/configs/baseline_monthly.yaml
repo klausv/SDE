@@ -1,0 +1,67 @@
+# Baseline Configuration - No Battery
+#
+# Calculates system performance WITHOUT battery storage to establish
+# economic baseline for ROI comparison. Uses same infrastructure as
+# battery simulations but bypasses optimization solvers.
+#
+# Performance: ~0.001s (instant) vs 30-60s for LP/MPC solvers
+# Use Case: Economic baseline for comparing battery investment
+
+# Simulation mode
+mode: baseline  # or set mode: monthly with battery.capacity_kwh: 0
+
+# Time resolution
+time_resolution: "PT60M"  # Hourly resolution (PT15M for 15-minute)
+
+# Simulation period
+simulation_period:
+  start_date: "2024-01-01"
+  end_date: "2024-12-31"
+
+# Battery configuration - SET TO ZERO FOR BASELINE
+battery:
+  capacity_kwh: 0.0      # Zero battery capacity (baseline mode)
+  power_kw: 0.0          # Zero battery power (baseline mode)
+  efficiency: 0.90       # Not used in baseline
+  initial_soc_percent: 0.0
+  min_soc_percent: 0.0
+  max_soc_percent: 0.0
+
+# Data sources
+data_sources:
+  prices_file: "data/spot_prices/NO2_2024_60min.csv"
+  production_file: "data/pv_profiles/pvgis_stavanger_150kwp.csv"
+  consumption_file: "data/consumption/commercial_profile.csv"
+
+# Monthly mode configuration
+monthly:
+  months: all  # or specific months like [1, 2, 3] for Q1
+
+# Economic analysis
+economic:
+  discount_rate: 0.05
+  project_years: 15
+
+# Infrastructure references
+infrastructure:
+  tariffs: "configs/infrastructure/tariffs_lnett_2024.yaml"
+
+# Notes
+# ------
+# This configuration calculates baseline costs WITHOUT battery:
+#   - Grid import costs
+#   - Grid export revenue
+#   - Power tariff costs
+#   - Curtailment losses (when PV > grid limit)
+#
+# Compare with battery simulation to calculate:
+#   - Annual savings = baseline_cost - battery_cost
+#   - Payback period = battery_investment / annual_savings
+#   - NPV = sum(savings / (1+r)^t) - investment
+#   - IRR = rate where NPV = 0
+#
+# Example usage:
+#   python main.py run --config configs/baseline_monthly.yaml
+#
+#   # Then compare with battery simulation
+#   python scripts/report_cli.py compare baseline_id battery_id

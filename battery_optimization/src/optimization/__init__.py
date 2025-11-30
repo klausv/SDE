@@ -12,6 +12,7 @@ from .optimizer_registry import (
     SolverType,
     TimeScale
 )
+from .baseline_calculator import BaselineCalculator
 
 __all__ = [
     'BaseOptimizer',
@@ -21,4 +22,5 @@ __all__ = [
     'OptimizerMetadata',
     'SolverType',
     'TimeScale',
+    'BaselineCalculator',
 ]

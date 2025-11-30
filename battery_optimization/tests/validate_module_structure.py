@@ -125,8 +125,8 @@ def test_optimizer_registry():
     names = OptimizerRegistry.list_names()
     print(f"Registered optimizers: {', '.join(names)}")
 
-    if len(names) != 3:
-        print(f"✗ Expected 3 registered optimizers, found {len(names)}")
+    if len(names) != 4:
+        print(f"✗ Expected 4 registered optimizers, found {len(names)}")
         return False
 
     # Check each optimizer has metadata

@@ -50,7 +50,8 @@ def run_from_config(config_path: Path) -> None:
     # Select orchestrator based on mode
     if config.mode == "rolling_horizon":
         orchestrator = RollingHorizonOrchestrator(config)
-    elif config.mode == "monthly":
+    elif config.mode == "monthly" or config.mode == "baseline":
+        # Baseline mode uses MonthlyOrchestrator (factory auto-selects BaselineCalculator)
         orchestrator = MonthlyOrchestrator(config)
     elif config.mode == "yearly":
         orchestrator = YearlyOrchestrator(config)

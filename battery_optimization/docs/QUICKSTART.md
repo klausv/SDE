@@ -11,6 +11,39 @@ conda activate battery_opt
 echo "ENTSOE_API_KEY=your_key_here" > .env
 ```
 
+## Baseline Mode (No Battery)
+
+**New in v2.0**: Calculate economic baseline without battery for ROI comparison.
+
+```bash
+# Run baseline calculation (instant, no solver overhead)
+python main.py run --config configs/baseline_monthly.yaml
+```
+
+**Why baseline mode?**
+- Establishes economic reference point for battery ROI
+- Instant calculation (~1ms) vs 30-60s optimization
+- Same infrastructure (pricing, weather, tariffs)
+- Critical for investment analysis
+
+**Usage**:
+```python
+from src import SimulationConfig
+from src.simulation import MonthlyOrchestrator
+
+# Baseline via YAML
+config = SimulationConfig.from_yaml("configs/baseline_monthly.yaml")
+orchestrator = MonthlyOrchestrator(config)
+baseline_results = orchestrator.run()
+
+# Or programmatic with battery_kwh=0
+config.battery.capacity_kwh = 0.0
+config.battery.power_kw = 0.0
+# Factory auto-detects and uses BaselineCalculator
+```
+
+See `examples/example_baseline_usage.py` for complete examples.
+
 ## Basic Usage
 
 ### 1. Load Configuration
